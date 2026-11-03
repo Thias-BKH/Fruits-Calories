@@ -1,35 +1,38 @@
 #include <esp_system.h>
-#include <esp_task_wdt.h>
 #include <WiFi.h>
 #include <WebServer.h>
 #include <Image_classification_Fruits__inferencing.h>
 
-// --------------------------------------------------
-// Wi-Fi
-// --------------------------------------------------
+// ==================================================
+// WIFI
+// ==================================================
 
 const char* ssid = "FruitClassifier";
 const char* password = "fruit1234";
 
 WebServer server(80);
 
-// --------------------------------------------------
-// Image buffer
-// --------------------------------------------------
 
-#define IMAGE_WIDTH 96
+// ==================================================
+// IMAGE SETTINGS
+// ==================================================
+
+#define IMAGE_WIDTH  96
 #define IMAGE_HEIGHT 96
-#define IMAGE_SIZE (IMAGE_WIDTH * IMAGE_HEIGHT)
+#define IMAGE_SIZE   (IMAGE_WIDTH * IMAGE_HEIGHT)
 
-uint8_t imageBuffer[IMAGE_SIZE];
+// Each pixel is stored as 32-bit packed RGB: 0xRRGGBB
+#define IMAGE_BYTES (IMAGE_SIZE * sizeof(uint32_t))
+
+uint32_t imageBuffer[IMAGE_SIZE];
 
 size_t receivedBytes = 0;
 bool uploadValid = true;
 
 
-// --------------------------------------------------
-// Edge Impulse: Read image data
-// --------------------------------------------------
+// ==================================================
+// EDGE IMPULSE: IMAGE SIGNAL
+// ==================================================
 
 int get_signal_data(size_t offset, size_t length, float *out_ptr) {
 
@@ -38,23 +41,38 @@ int get_signal_data(size_t offset, size_t length, float *out_ptr) {
     }
 
     for (size_t i = 0; i < length; i++) {
-        out_ptr[i] = imageBuffer[offset + i];
+
+        // Each sample represents one packed RGB pixel.
+        out_ptr[i] = (float)imageBuffer[offset + i];
+
     }
 
     return 0;
 }
 
 
-// --------------------------------------------------
-// Run classification
-// --------------------------------------------------
+// ==================================================
+// RUN CLASSIFICATION
+// ==================================================
 
 String classifyImage() {
 
-    Serial.println("\n========== CLASSIFICATION ==========");
-    Serial.printf("Free heap before inference: %u\n", ESP.getFreeHeap());
-    Serial.printf("Largest block before inference: %u\n", ESP.getMaxAllocHeap());
+    Serial.println("\n========== RGB CLASSIFICATION ==========");
+
+    Serial.printf(
+        "Free heap: %u bytes\n",
+        ESP.getFreeHeap()
+    );
+
+    Serial.printf(
+        "Largest free block: %u bytes\n",
+        ESP.getMaxAllocHeap()
+    );
+
     Serial.flush();
+
+
+    // Prepare Edge Impulse signal
 
     signal_t signal;
 
@@ -63,11 +81,14 @@ String classifyImage() {
 
     ei_impulse_result_t result = { 0 };
 
-    Serial.println("DEBUG 1: Signal prepared");
+
+    Serial.println("DEBUG 1: RGB signal prepared");
     Serial.flush();
+
 
     Serial.println("DEBUG 2: Calling run_classifier()");
     Serial.flush();
+
 
     EI_IMPULSE_ERROR error = run_classifier(
         &signal,
@@ -75,22 +96,40 @@ String classifyImage() {
         false
     );
 
-    Serial.println("DEBUG 3: run_classifier() returned");
-    Serial.printf("Error code: %d\n", error);
-    Serial.printf("Free heap after inference: %u\n", ESP.getFreeHeap());
+
+    Serial.println("DEBUG 3: Classifier returned");
+
+    Serial.printf(
+        "Error code: %d\n",
+        error
+    );
+
+    Serial.printf(
+        "Free heap after inference: %u bytes\n",
+        ESP.getFreeHeap()
+    );
+
     Serial.flush();
+
 
     if (error != EI_IMPULSE_OK) {
 
-        Serial.printf("Classification failed: %d\n", error);
+        Serial.printf(
+            "Classification failed: %d\n",
+            error
+        );
 
         return "{\"error\":\"Classification failed\"}";
     }
+
+
+    // Print classification results
 
     Serial.println("\nClassification results:");
 
     int bestIndex = 0;
     float bestConfidence = 0;
+
 
     for (size_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++) {
 
@@ -103,12 +142,18 @@ String classifyImage() {
         );
 
         if (confidence > bestConfidence) {
+
             bestConfidence = confidence;
             bestIndex = i;
+
         }
     }
 
+
+    // Get best prediction
+
     const char* label = result.classification[bestIndex].label;
+
 
     Serial.printf(
         "\nPrediction: %s (%.2f%%)\n",
@@ -116,33 +161,45 @@ String classifyImage() {
         bestConfidence * 100
     );
 
+
+    // Construct JSON response
+
     String response = "{";
+
     response += "\"label\":\"";
     response += label;
+
     response += "\",";
+
     response += "\"confidence\":";
     response += String(bestConfidence, 4);
+
     response += ",\"timing_ms\":";
     response += String(result.timing.classification);
+
     response += "}";
+
 
     Serial.println("========== CLASSIFICATION COMPLETE ==========");
 
     return response;
 }
 
-// --------------------------------------------------
-// Webpage
-// --------------------------------------------------
+
+// ==================================================
+// WEBPAGE
+// ==================================================
 
 const char webpage[] PROGMEM = R"rawliteral(
+
 <!DOCTYPE html>
 <html>
+
 <head>
 
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>Fruit Classifier</title>
+<title>RGB Fruit Classifier</title>
 
 <style>
 
@@ -181,11 +238,13 @@ canvas {
 
 </head>
 
+
 <body>
 
-<h1>Fruit Classifier</h1>
+<h1>RGB Fruit Classifier</h1>
 
 <p>Take a photo of a fruit.</p>
+
 
 <input
     type="file"
@@ -196,42 +255,76 @@ canvas {
 
 <br>
 
-<canvas id="canvas" width="96" height="96"></canvas>
+
+<canvas
+    id="canvas"
+    width="96"
+    height="96">
+</canvas>
 
 <br>
 
-<button onclick="sendImage()">Classify fruit</button>
 
-<p id="status">Waiting for image...</p>
+<button onclick="sendImage()">
+    Classify fruit
+</button>
+
+
+<p id="status">
+    Waiting for image...
+</p>
+
 
 <div id="result"></div>
 
+
 <script>
+
+
+// ==================================================
+// PROCESS AND SEND IMAGE
+// ==================================================
 
 async function sendImage() {
 
     const input = document.getElementById("photo");
+
     const status = document.getElementById("status");
+
     const result = document.getElementById("result");
 
+
     if (!input.files || input.files.length === 0) {
+
         status.textContent = "Please take a photo first.";
+
         return;
+
     }
 
-    status.textContent = "Processing image...";
+
+    status.textContent = "Processing RGB image...";
+
     result.textContent = "";
+
 
     const file = input.files[0];
 
     const img = new Image();
+
     const imageURL = URL.createObjectURL(file);
 
     img.src = imageURL;
 
+
     try {
 
         await img.decode();
+
+
+        // ------------------------------------------
+        // RESIZE IMAGE
+        // ------------------------------------------
 
         const canvas = document.getElementById("canvas");
 
@@ -239,11 +332,15 @@ async function sendImage() {
             willReadFrequently: true
         });
 
+
         // Center crop to square
+
         const side = Math.min(img.width, img.height);
 
         const sx = (img.width - side) / 2;
+
         const sy = (img.height - side) / 2;
+
 
         ctx.drawImage(
             img,
@@ -251,58 +348,121 @@ async function sendImage() {
             0, 0, 96, 96
         );
 
-        // Convert RGB to grayscale
-        const imageData = ctx.getImageData(0, 0, 96, 96);
+
+        // ------------------------------------------
+        // EXTRACT RGB PIXELS
+        // ------------------------------------------
+
+        const imageData = ctx.getImageData(
+            0,
+            0,
+            96,
+            96
+        );
+
         const pixels = imageData.data;
 
-        const grayscale = new Uint8Array(96 * 96);
 
-        for (let i = 0; i < grayscale.length; i++) {
+        // One 32-bit packed RGB value per pixel.
+        // Format: 0xRRGGBB
+
+        const rgbPixels = new Uint32Array(96 * 96);
+
+
+        for (let i = 0; i < rgbPixels.length; i++) {
 
             const r = pixels[i * 4];
+
             const g = pixels[i * 4 + 1];
+
             const b = pixels[i * 4 + 2];
 
-            grayscale[i] = Math.round(
-                0.299 * r +
-                0.587 * g +
-                0.114 * b
-            );
+
+            rgbPixels[i] =
+                (r << 16) |
+                (g << 8) |
+                b;
+
         }
+
 
         URL.revokeObjectURL(imageURL);
 
-        status.textContent = "Sending image and classifying...";
+
+        // ------------------------------------------
+        // SEND RGB IMAGE
+        // ------------------------------------------
+
+        status.textContent = "Sending RGB image...";
+
 
         const formData = new FormData();
 
+
         const blob = new Blob(
-            [grayscale],
-            { type: "application/octet-stream" }
+            [rgbPixels.buffer],
+            {
+                type: "application/octet-stream"
+            }
         );
 
-        formData.append("image", blob, "image.raw");
+
+        formData.append(
+            "image",
+            blob,
+            "image.rgb"
+        );
+
 
         const response = await fetch("/upload", {
+
             method: "POST",
+
             body: formData
+
         });
+
 
         const data = await response.json();
 
+
         if (!response.ok) {
-            throw new Error(data.error || "Classification failed");
+
+            throw new Error(
+                data.error || "Classification failed"
+            );
+
         }
+
+
+        if (data.error) {
+
+            throw new Error(data.error);
+
+        }
+
+
+        // ------------------------------------------
+        // DISPLAY RESULT
+        // ------------------------------------------
 
         status.textContent = "Classification complete!";
 
+
         result.innerHTML = `
+
             <strong>${data.label}</strong>
+
             <br>
+
             ${(data.confidence * 100).toFixed(1)}%
+
         `;
 
-    } catch (error) {
+
+    }
+
+    catch (error) {
 
         status.textContent = "Error: " + error.message;
 
@@ -310,16 +470,19 @@ async function sendImage() {
 
 }
 
+
 </script>
 
 </body>
+
 </html>
+
 )rawliteral";
 
 
-// --------------------------------------------------
-// Serve webpage
-// --------------------------------------------------
+// ==================================================
+// SERVE WEBPAGE
+// ==================================================
 
 void handleRoot() {
 
@@ -332,61 +495,95 @@ void handleRoot() {
 }
 
 
-// --------------------------------------------------
-// Receive uploaded image
-// --------------------------------------------------
+// ==================================================
+// RECEIVE IMAGE UPLOAD
+// ==================================================
 
 void handleUploadData() {
 
     HTTPUpload& upload = server.upload();
 
 
+    // ----------------------------------------------
+    // UPLOAD START
+    // ----------------------------------------------
+
     if (upload.status == UPLOAD_FILE_START) {
 
-
         receivedBytes = 0;
+
         uploadValid = true;
 
-        Serial.println("\nImage upload started");
+        Serial.println("\nRGB image upload started");
 
     }
 
+
+    // ----------------------------------------------
+    // RECEIVE DATA
+    // ----------------------------------------------
+
     else if (upload.status == UPLOAD_FILE_WRITE) {
 
-        if (receivedBytes + upload.currentSize <= IMAGE_SIZE) {
+        if (
+            receivedBytes + upload.currentSize
+            <= IMAGE_BYTES
+        ) {
 
             memcpy(
-                imageBuffer + receivedBytes,
-                upload.buf,
-                upload.currentSize
-            );
 
+                ((uint8_t*)imageBuffer) + receivedBytes,
+
+                upload.buf,
+
+                upload.currentSize
+
+            );
 
             receivedBytes += upload.currentSize;
 
-        } else {
+        }
+
+        else {
 
             uploadValid = false;
+
+            Serial.println("ERROR: RGB image too large");
 
         }
 
     }
 
+
+    // ----------------------------------------------
+    // UPLOAD FINISHED
+    // ----------------------------------------------
+
     else if (upload.status == UPLOAD_FILE_END) {
 
-        Serial.println("Image upload finished");
+        Serial.println("RGB image upload finished");
+
+        Serial.printf(
+            "Received bytes: %u\n",
+            (unsigned int)receivedBytes
+        );
 
     }
 
 }
 
 
-// --------------------------------------------------
-// Handle completed upload
-// --------------------------------------------------
+// ==================================================
+// HANDLE COMPLETED UPLOAD
+// ==================================================
 
 void handleUploadComplete() {
-    
+
+
+    // ----------------------------------------------
+    // CHECK UPLOAD SIZE
+    // ----------------------------------------------
+
     if (!uploadValid) {
 
         server.send(
@@ -396,35 +593,66 @@ void handleUploadComplete() {
         );
 
         return;
+
     }
 
-    if (receivedBytes != IMAGE_SIZE) {
+
+    if (receivedBytes != IMAGE_BYTES) {
+
+        Serial.printf(
+            "Incorrect RGB image size: %u\n",
+            (unsigned int)receivedBytes
+        );
 
         server.send(
             400,
             "application/json",
-            "{\"error\":\"Incorrect image size\"}"
-        );
-
-        Serial.printf(
-            "Incorrect image size: %d\n",
-            (int)receivedBytes
+            "{\"error\":\"Incorrect RGB image size\"}"
         );
 
         return;
+
     }
 
+
+    Serial.println("\nRGB image received successfully");
+
     Serial.printf(
-        "Received %d image pixels\n",
-        (int)receivedBytes
+        "Pixels: %d\n",
+        IMAGE_SIZE
     );
 
-    Serial.println("DEBUG: Upload complete, starting classification");
-    Serial.printf("Free heap: %u\n", ESP.getFreeHeap());
-    Serial.printf("Largest free block: %u\n", ESP.getMaxAllocHeap());
+    Serial.printf(
+        "Bytes: %u\n",
+        (unsigned int)receivedBytes
+    );
+
+
+    Serial.println("DEBUG: Preparing RGB classification");
+
+    Serial.printf(
+        "Free heap: %u bytes\n",
+        ESP.getFreeHeap()
+    );
+
+    Serial.printf(
+        "Largest free block: %u bytes\n",
+        ESP.getMaxAllocHeap()
+    );
+
     Serial.flush();
-    
+
+
+    // ----------------------------------------------
+    // CLASSIFY
+    // ----------------------------------------------
+
     String response = classifyImage();
+
+
+    // ----------------------------------------------
+    // SEND RESULT TO PHONE
+    // ----------------------------------------------
 
     server.send(
         200,
@@ -435,29 +663,52 @@ void handleUploadComplete() {
 }
 
 
-// --------------------------------------------------
-// Setup
-// --------------------------------------------------
+// ==================================================
+// SETUP
+// ==================================================
 
 void setup() {
 
     Serial.begin(115200);
 
-    Serial.printf("Reset reason: %d\n", (int)esp_reset_reason());
-
-
     delay(1500);
 
-    Serial.println("\nStarting Fruit Classifier");
+
+    Serial.println("\nStarting RGB Fruit Classifier");
+
+    Serial.printf(
+        "Reset reason: %d\n",
+        (int)esp_reset_reason()
+    );
+
+
+    // ----------------------------------------------
+    // START WIFI ACCESS POINT
+    // ----------------------------------------------
 
     WiFi.mode(WIFI_AP);
 
-    WiFi.softAP(ssid, password);
+    WiFi.softAP(
+        ssid,
+        password
+    );
+
 
     Serial.print("Access point IP: ");
+
     Serial.println(WiFi.softAPIP());
 
-    server.on("/", HTTP_GET, handleRoot);
+
+    // ----------------------------------------------
+    // REGISTER ROUTES
+    // ----------------------------------------------
+
+    server.on(
+        "/",
+        HTTP_GET,
+        handleRoot
+    );
+
 
     server.on(
         "/upload",
@@ -466,22 +717,51 @@ void setup() {
         handleUploadData
     );
 
+
+    // ----------------------------------------------
+    // START SERVER
+    // ----------------------------------------------
+
     server.begin();
-    
+
+
+    // ----------------------------------------------
+    // MEMORY DEBUG
+    // ----------------------------------------------
+
     Serial.println("\n--- MEMORY DEBUG ---");
-    Serial.printf("Free heap: %u bytes\n", ESP.getFreeHeap());
-    Serial.printf("Largest free block: %u bytes\n", ESP.getMaxAllocHeap());
-    Serial.printf("PSRAM available: %u bytes\n", ESP.getFreePsram());
+
+    Serial.printf(
+        "Free heap: %u bytes\n",
+        ESP.getFreeHeap()
+    );
+
+    Serial.printf(
+        "Largest free block: %u bytes\n",
+        ESP.getMaxAllocHeap()
+    );
+
+    Serial.printf(
+        "PSRAM available: %u bytes\n",
+        ESP.getFreePsram()
+    );
+
+    Serial.printf(
+        "RGB image buffer: %u bytes\n",
+        (unsigned int)sizeof(imageBuffer)
+    );
+
     Serial.println("--------------------\n");
 
-    Serial.println("Web server started");
+
+    Serial.println("RGB web server started");
 
 }
 
 
-// --------------------------------------------------
-// Main loop
-// --------------------------------------------------
+// ==================================================
+// MAIN LOOP
+// ==================================================
 
 void loop() {
 
