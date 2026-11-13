@@ -31,26 +31,30 @@ Pins are in `main/board_config.h` (button, LED) and `sdkconfig.defaults` (log TX
 | purple  | unsure (confidence < 60%)            |
 | magenta | camera error, press again            |
 
-## Build and flash
+## Build and flash (VS Code)
 
-With Docker, no install needed:
+Uses the [ESP-IDF extension](https://marketplace.visualstudio.com/items?itemName=espressif.esp-idf-extension)
+(`espressif.esp-idf-extension`).
 
-```sh
-cd firmware
-docker run --rm -v "$PWD":/project -w /project espressif/idf:v5.4.1 idf.py build
-```
+**One-time setup**
 
-Flash it with [esptool](https://docs.espressif.com/projects/esptool/) (`pip install esptool`),
-with the board on USB and **no camera attached**:
+1. Command palette (`Cmd+Shift+P`) → **ESP-IDF: Configure ESP-IDF Extension** → **Express**.
+2. Pick ESP-IDF **v5.4.1**, keep the other defaults, and install.
 
-```sh
-cd build && python -m esptool --chip esp32s3 write_flash @flash_args
-```
+**Every time**
 
-Or install ESP-IDF v5.4 natively and run `idf.py build flash`.
-
-**Reflashing:** once this firmware runs, the board's USB port is a host and no longer shows up
-as a serial port. Hold the reset button for about 2 seconds until the LED turns green (download mode), then flash.
+1. **File → Open Folder** → this `firmware` folder (not the repo root).
+2. Put the board in download mode with **no camera attached**: plug it into the Mac over USB-C.
+   Once this firmware is on it, the board's USB port works as a host and no longer shows up
+   as a serial port. Hold the reset button for about 2 seconds until the LED turns green.
+3. Use the bottom status bar:
+   - **Set target** (chip icon) → `esp32s3` (builtin USB-JTAG)
+   - **Select port** (plug icon) → `/dev/cu.usbmodem…`
+   - **Flash method** (star icon) → **UART**
+   - **Build, Flash and Monitor** (flame icon)
+4. Press reset, then connect the camera (with 5 V power, see above).
+   The Monitor goes quiet once the firmware starts because USB is now the camera port.
+   Read the log on G1 with a USB-UART adapter, or watch the LED.
 
 ## Tests
 
