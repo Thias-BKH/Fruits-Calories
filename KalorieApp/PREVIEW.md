@@ -58,10 +58,33 @@ i projektmappen viser også denne vejledning, hvis du besøger port 5500.
 - Åbn `preview/index.html` via previewserveren, ikke direkte eller gennem Live Server.
 
 
-## Afprøv scanningens bekræftelse
+## Scan dit eget foto eller brug kameraet
+
+1. Åbn **http://127.0.0.1:8000** på computeren, hvor serveren kører.
+2. Vent på **Modellen er klar**. Første gang bygges den medfølgende model fra
+   `models/`-zippen. Det kræver C++-compileren og kan tage et par minutter.
+3. Vælg et foto af ét æble eller én banan, og tryk **Scan foto**. Alternativt:
+   **Åbn kamera → tillad kameraadgang → Tag billede og scan**.
+4. Hold frugten midt i billedet. Det viste kvadratiske udsnit er dét, modellen ser.
+5. Kontrollér frugt og kcal på den virtuelle skærm. Brug **↓ → Enter** for Accepter,
+   **Enter** direkte for Afvis eller **Escape** for at afvise.
+
+Det er **jeres rigtige RGB-model 1.0.8**, som kører på computeren. Billedet
+beskæres i midten og skaleres til 96 × 96 RGB-pixels, ligesom på telefonens
+ESP32-side. Resultatet bruger samme kalorieberegning og bekræftelseskode.
+**Vis modellens vurdering** viser sandsynlighederne for alle tre klasser.
+
+Kameraet åbnes kun, når du trykker Åbn kamera, og kan slukkes med **Luk kamera**.
+Billeder behandles i hukommelsen og gemmes ikke af serveren. Ingen fotos sendes
+til Edge Impulse eller andre eksterne tjenester.
+
+Modellens kildefiler og program caches i `.preview-cache/`, som Git ignorerer.
+Der installeres ingen Python-pakker eller Arduino-biblioteker til denne test.
+
+### Simulerede resultater til layouttest
 
 Knapperne **Simulér scanning: Æble** og **Banan** åbner samme bekræftelsesside
-som et rigtigt modelresultat på ESP32. Der køres ingen model i simulatoren.
+med faste testresultater. Foto/kamera-sektionen kører den rigtige model.
 
 - **Afvis** er valgt fra start. Enter afviser og ændrer ikke dagens kalorier.
 - Swipe én gang (↑ eller ↓) til **Accepter**, og tryk Enter for at registrere.
@@ -71,5 +94,7 @@ som et rigtigt modelresultat på ESP32. Der køres ingen model i simulatoren.
 - Et ventende forslag bliver ikke erstattet af endnu et simuleret resultat.
 - Hot reload bevarer frugt, portion, kcal og valgt knap uden at registrere forslaget.
 
-For rigtig fotografering skal det samlede program køre på ESP32. Telefonen
-åbner ESP32's lokale side på **http://192.168.4.1**, ikke simulatorens port 8000.
+Lokal foto-/kameratest kræver ingen tilsluttet ESP32 eller skærm. Den tester
+modellens genkendelse og appens bekræftelsesflow. Fysisk touch, RAM og hastighed
+på ESP32 skal stadig afprøves på kortet. Ved senere hardwaretest åbner telefonen
+ESP32's side på **http://192.168.4.1**.

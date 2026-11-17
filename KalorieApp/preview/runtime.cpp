@@ -42,6 +42,12 @@ int main() {
     else if (action == "banana") FrugtKalorier::modtag(app, "Banan", .91f, now);
     else if (action == "background") FrugtKalorier::modtag(app, "Background", .98f, now);
     else if (action == "uncertain") FrugtKalorier::modtag(app, "Æble", .4f, now);
+    else if (action == "prediction") {
+      float confidence = 0;
+      std::string label;
+      if (input >> confidence >> std::quoted(label))
+        FrugtKalorier::modtag(app, label.c_str(), confidence, now);
+    }
     else if (action == "day") app.nyDag(now);
     else if (action == "week") app.nyUge(now);
     app.tick(now);

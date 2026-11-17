@@ -18,8 +18,9 @@ ACTIONS = {"up", "down", "press", "back", "add", "apple", "banana", "background"
 
 
 class PreviewEngine:
-    def __init__(self, project):
+    def __init__(self, project, classifier=None):
         self.project = Path(project).resolve()
+        self.classifier = classifier
         self.temp = tempfile.TemporaryDirectory(prefix="kalorie-preview-")
         self.binary = Path(self.temp.name) / "runtime"
         self.process = None
@@ -133,15 +134,33 @@ class PreviewEngine:
                 return {"pixels": None, "state": self.state, "error": self.error,
                         "revision": self.revision}
 
+    def scan(self, rgb):
+        # Samme laas som tastetryk: et foto kan ikke registreres/udskiftes under inferens.
+        with self.lock:
+            self.check_build()
+            if self.process is None:
+                raise RuntimeError(self.error or "Skærmvisningen kunne ikke starte.")
+            current = self.exchange("frame")["state"]
+            if current["pending"] or current["side"] not in (0, 1, 6):
+                raise ValueError("Afslut dit valg på skærmen før en ny scanning.")
+            prediction = self.classifier.classify(rgb)
+            extra = str(prediction["confidence"]) + " " + json.dumps(prediction["label"], ensure_ascii=False)
+            frame = self.exchange("prediction", extra)
+            frame["prediction"] = prediction
+            return frame
+
 
 def main():
+    from native_classifier import LocalClassifier, IMAGE_BYTES
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--project", type=Path, default=HERE.parent)
     args = parser.parse_args()
     if not (args.project / "app_visning.h").is_file():
         parser.error("Start fra KalorieApp-mappen, hvor app_visning.h ligger.")
-    engine = PreviewEngine(args.project)
+    classifier = LocalClassifier(args.project)
+    classifier.start()
+    engine = PreviewEngine(args.project, classifier)
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_):
@@ -167,18 +186,34 @@ def main():
                 self.send_data(200, (HERE / "index.html").read_bytes(), "text/html; charset=utf-8")
             elif path == "/api/frame":
                 self.send_json(200, engine.frame())
+            elif path == "/api/model":
+                self.send_json(200, classifier.status())
             elif path == "/health":
                 self.send_json(200, {"app": "KalorieApp-preview", "project": str(engine.project)})
             else:
                 self.send_json(404, {"error": "Siden findes ikke."})
 
         def do_POST(self):
-            if self.path != "/api/input":
+            if self.path not in ("/api/input", "/api/photo"):
                 return self.send_json(404, {"error": "Siden findes ikke."})
             origin = self.headers.get("Origin")
             allowed = {"http://127.0.0.1:%d" % args.port, "http://localhost:%d" % args.port}
             if origin and origin not in allowed:
                 return self.send_json(403, {"error": "Åbn previewet på den lokale previewadresse."})
+            if self.path == "/api/photo":
+                try:
+                    length = int(self.headers.get("Content-Length", "0"))
+                    if length != IMAGE_BYTES:
+                        return self.send_json(400, {"message": "Forventede 96 × 96 RGB-pixels."})
+                    if not classifier.status()["ready"]:
+                        return self.send_json(503, {"message": classifier.error or classifier.message})
+                    rgb = self.rfile.read(length)
+                    self.send_json(200, engine.scan(rgb))
+                except ValueError as exc:
+                    self.send_json(409, {"message": str(exc)})
+                except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+                    self.send_json(500, {"message": "Billedet kunne ikke genkendes: " + str(exc)})
+                return
             try:
                 length = int(self.headers.get("Content-Length", "0"))
                 if not 0 < length <= 512:

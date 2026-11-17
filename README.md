@@ -24,14 +24,22 @@ cd KalorieApp
 python3 preview/server.py
 ```
 
-Åbn **http://127.0.0.1:8000**. Vælg **Simulér scanning: Æble** eller **Banan**,
-brug **↓** for at vælge Accepter, og tryk **Enter** for at registrere.
-Et Enter-tryk umiddelbart efter scanningen vælger standardhandlingen Afvis.
-**Escape** afviser også. Genstart-knappen gendanner testdata.
+Åbn **http://127.0.0.1:8000**. Under **Scan en rigtig frugt** kan du:
 
-Simulatoren bruger samme C++-model og tegnekode som hardwaren. Den leverer
-**simulerede modelresultater** og kører ingen billedgenkendelse. Python 3 og en
-C++17-compiler er nødvendige. Se [PREVIEW.md](KalorieApp/PREVIEW.md).
+- vælge et foto og trykke **Scan foto**, eller
+- trykke **Åbn kamera**, tillade kameraadgang og vælge **Tag billede og scan**.
+
+Den medfølgende **Edge Impulse RGB-model 1.0.8 kører lokalt på computeren**.
+Første opstart bygger modellen og viser status; senere starter den fra en lokal cache.
+Fotos behandles i hukommelsen og gemmes ikke. Der bruges ingen skytjeneste eller ESP32.
+
+Resultatet åbner samme bekræftelsesside som på hardwaren. Brug **↓** for at vælge
+**Accepter**, og tryk **Enter** for at registrere. Enter direkte efter scanningen
+vælger standardhandlingen **Afvis**. **Escape** afviser også.
+
+Knapperne under **Simulerede testdata** er fortsat tilgængelige til layouttests.
+Python 3 og en C++17-compiler er nødvendige; ingen ekstra Python-pakker.
+Se [PREVIEW.md](KalorieApp/PREVIEW.md).
 
 ## Kør hele løsningen på ESP32
 
@@ -90,7 +98,8 @@ Events fra ventetiden kasseres, før bekræftelsessiden betjenes.
 ## Verifikation
 
 Softwareflowet og RGB-bufferen er testet med address/undefined-sanitizer;
-previewets hot reload og bekræftelsesside er kontrolleret. Det samlede program
+previewets hot reload og bekræftelsesside er kontrolleret. Lokal inferens med den
+rigtige model og foto → Banan → Accepter er afprøvet i browseren med et testfoto. Det samlede program
 er kompileret til ESP32 Dev Module med Arduino-ESP32 3.3.12 og Huge APP.
 
 **Der er ikke foretaget upload eller fysisk test af den samlede version.**

@@ -41,6 +41,7 @@
     button { font:inherit; cursor:pointer; border:1px solid #cfd6ce; border-radius:8px; background:#f8faf5; color:var(--ink); padding:10px 12px; min-height:42px; display:flex; justify-content:space-between; align-items:center; gap:10px; }
     button:hover { background:#edf2e9; border-color:#b7c5b6; }
     button:active { transform:translateY(1px); }
+    button:disabled { opacity:.5; cursor:not-allowed; transform:none; }
     button:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visible { outline:3px solid #6eaa85; outline-offset:3px; }
     button.primary { background:var(--accent); border-color:var(--accent); color:white; }
     button.primary:hover { background:#1d5139; }
@@ -59,6 +60,13 @@
     .error-box summary { cursor:pointer; }
     pre { white-space:pre-wrap; word-break:break-word; max-height:220px; overflow:auto; padding:10px; background:#fffbf5; border-radius:6px; }
     footer { margin-top:20px; font-size:12px; color:var(--muted); }
+    .photo-controls { display:grid; gap:9px; }
+    .photo-controls input { font:inherit; font-size:13px; max-width:100%; }
+    #camera-video { width:100%; max-height:240px; background:#18221c; border-radius:8px; margin:10px 0; }
+    #crop-preview { width:96px; height:96px; aspect-ratio:1; image-rendering:auto; border-radius:8px; margin:12px 0; }
+    #photo-message { margin-top:12px; }
+    #model-status { margin-bottom:12px; }
+    .prediction-details { margin-top:10px; font-size:13px; }
     [hidden] { display:none !important; }
     @media(max-width:760px) { main { padding:22px 16px; } header { align-items:flex-start; flex-direction:column; gap:12px; margin-bottom:18px; } .layout { grid-template-columns:1fr; gap:16px; } .screen-stage { padding:22px 18px; } h1 { font-size:26px; } }
   </style>
@@ -69,7 +77,7 @@
     <div>
       <p class="eyebrow">KalorieApp · Simulator</p>
       <h1>Dit design, på computeren</h1>
-      <p class="subtitle">Den samme tegnekode som på din ESP32.</p>
+      <p class="subtitle">Scan en frugt, og prøv appen uden ESP32.</p>
     </div>
     <div id="connection" class="status" data-state="waiting" role="status"><span class="dot" aria-hidden="true"></span><span id="connection-text">Forbinder…</span></div>
   </header>
@@ -95,6 +103,22 @@
     </section>
 
     <aside>
+      <section class="panel" aria-label="Scan med dit kamera">
+        <h2>Scan en rigtig frugt</h2>
+        <p class="help" id="model-status" role="status">Forbereder billedgenkendelse…</p>
+        <div class="photo-controls">
+          <label class="help" for="photo">Vælg et foto af ét æble eller én banan</label>
+          <input id="photo" type="file" accept="image/*" capture="environment">
+          <button id="scan-photo" type="button" class="primary" disabled>Scan foto</button>
+          <button id="open-camera" type="button">Åbn kamera</button>
+        </div>
+        <video id="camera-video" autoplay muted playsinline hidden aria-label="Livebillede fra dit kamera"></video>
+        <button id="capture-photo" type="button" class="primary" disabled hidden>Tag billede og scan</button>
+        <canvas id="crop-preview" width="96" height="96" hidden aria-label="Det billedudsnit, modellen ser"></canvas>
+        <p class="help" id="photo-message" aria-live="polite">Billedet behandles på din computer. Kontrollér resultatet på skærmen, og vælg Accepter eller Afvis.</p>
+        <details class="prediction-details" id="prediction-details" hidden><summary>Vis modellens vurdering</summary><p id="prediction-scores"></p></details>
+      </section>
+
       <section class="panel">
         <h2>Prøv betjeningen</h2>
         <div class="navigation">
@@ -108,7 +132,7 @@
       </section>
 
       <section class="panel">
-        <h2>Testdata</h2>
+        <h2>Simulerede testdata</h2>
         <div class="tests">
           <button type="button" data-action="apple"><span>Simulér scanning: Æble</span><kbd>+</kbd></button>
           <button type="button" data-action="banana">Simulér scanning: Banan</button>
@@ -128,7 +152,7 @@
           <dt>Valgt lysstyrke</dt><dd id="brightness">—</dd>
           <dt>Afventer accept</dt><dd id="pending">—</dd>
         </dl>
-        <p class="help" style="margin-top:12px">Simulerede modelresultater. Swipe til “Accepter” på skærmen og tryk for at registrere. “Afvis” er valgt fra start. Der køres ingen billedgenkendelse i simulatoren.</p>
+        <p class="help" style="margin-top:12px">Disse knapper simulerer et resultat. Brug foto eller kamera ovenfor til rigtig billedgenkendelse. “Afvis” er valgt fra start.</p>
       </section>
 
       <section class="panel">
@@ -168,6 +192,121 @@
   let lastDepth = null;
   let slide = null;
   let animationFrame = null;
+  let currentState = null;
+  let modelReady = false;
+  let photoBusy = false;
+  let cameraStream = null;
+  const photoInput = document.getElementById('photo');
+  const scanPhotoButton = document.getElementById('scan-photo');
+  const cameraButton = document.getElementById('open-camera');
+  const captureButton = document.getElementById('capture-photo');
+  const video = document.getElementById('camera-video');
+  const crop = document.getElementById('crop-preview');
+  const cropContext = crop.getContext('2d', {willReadFrequently:true});
+  const photoMessage = document.getElementById('photo-message');
+
+  function updatePhotoControls() {
+    const available = modelReady && !photoBusy && currentState && !currentState.pending
+      && [0,1,6].includes(currentState.side);
+    scanPhotoButton.disabled = !available || !photoInput.files.length;
+    captureButton.disabled = !available || !cameraStream || video.readyState < 2;
+    photoInput.disabled = photoBusy;
+    document.querySelectorAll('button[data-action]').forEach(button => {button.disabled = photoBusy;});
+  }
+
+  function stopCamera() {
+    if (cameraStream) cameraStream.getTracks().forEach(track => track.stop());
+    cameraStream = null;
+    video.srcObject = null;
+    video.hidden = true;
+    captureButton.hidden = true;
+    cameraButton.textContent = 'Åbn kamera';
+    updatePhotoControls();
+  }
+
+  cameraButton.addEventListener('click', async () => {
+    if (cameraStream) {stopCamera();return;}
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      photoMessage.textContent = 'Kameraet kræver en browser med kameraadgang på localhost. Du kan også vælge et foto.';
+      return;
+    }
+    cameraButton.disabled = true;
+    try {
+      cameraStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+      video.srcObject = cameraStream;
+      video.hidden = false;
+      captureButton.hidden = false;
+      await video.play();
+      cameraButton.textContent = 'Luk kamera';
+      photoMessage.textContent = 'Hold frugten midt i billedet. Tryk “Tag billede og scan”, når du er klar.';
+    } catch (error) {
+      stopCamera();
+      photoMessage.textContent = 'Kameraet kunne ikke åbnes. Tillad kameraadgang i browseren, eller vælg et foto.';
+    } finally {
+      cameraButton.disabled = false;
+      updatePhotoControls();
+    }
+  });
+  video.addEventListener('loadeddata', updatePhotoControls);
+  photoInput.addEventListener('change', updatePhotoControls);
+  window.addEventListener('pagehide', stopCamera);
+
+  async function scanSource(source) {
+    const width = source.videoWidth || source.naturalWidth;
+    const height = source.videoHeight || source.naturalHeight;
+    if (!width || !height) throw new Error('Billedet er ikke klar. Prøv igen.');
+    const side = Math.min(width, height);
+    cropContext.drawImage(source, (width-side)/2, (height-side)/2, side, side, 0, 0, 96, 96);
+    crop.hidden = false;
+    const rgba = cropContext.getImageData(0,0,96,96).data;
+    const rgb = new Uint8Array(96*96*3);
+    for (let i=0;i<96*96;i++) {rgb[i*3]=rgba[i*4];rgb[i*3+1]=rgba[i*4+1];rgb[i*3+2]=rgba[i*4+2];}
+    const response = await fetch('/api/photo', {method:'POST',headers:{'Content-Type':'application/octet-stream'},body:rgb});
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'Billedet kunne ikke genkendes.');
+    draw(data);
+    const prediction = data.prediction;
+    photoMessage.textContent = data.state.pending
+      ? `${data.state.fruit} · ${data.state.pendingKcal} kcal · standardportion ${data.state.pendingGrams} g. Afventer Accepter eller Afvis på skærmen.`
+      : (data.state.scanError || 'Ingen sikker frugt fundet') + '. Intet er registreret. Prøv et nyt billede.';
+    document.getElementById('prediction-scores').textContent = prediction.predictions.map(item =>
+      `${item.label}: ${(item.confidence*100).toFixed(1)} %`).join(' · ');
+    document.getElementById('prediction-details').hidden = false;
+  }
+
+  function enqueuePhoto(loader) {
+    if (photoBusy) return;
+    photoBusy = true;
+    updatePhotoControls();
+    photoMessage.textContent = 'Genkender frugten…';
+    queue = queue.then(async () => {
+      try {await loader();}
+      catch (error) {photoMessage.textContent = error.message || 'Billedet kunne ikke behandles.';}
+      finally {photoBusy = false;updatePhotoControls();}
+    });
+  }
+  scanPhotoButton.addEventListener('click', () => {
+    if (!photoInput.files.length) return;
+    const file = photoInput.files[0];
+    enqueuePhoto(async () => {
+      const url = URL.createObjectURL(file);
+      try {const image = new Image();image.src = url;await image.decode();await scanSource(image);}
+      finally {URL.revokeObjectURL(url);}
+    });
+  });
+  captureButton.addEventListener('click', () => enqueuePhoto(() => scanSource(video)));
+
+  async function pollModel() {
+    try {
+      const response = await fetch('/api/model', {cache:'no-store'});
+      const status = await response.json();
+      modelReady = status.ready;
+      document.getElementById('model-status').textContent = status.error
+        ? 'Billedmodellen kunne ikke starte: ' + status.error : status.message;
+      updatePhotoControls();
+    } catch (error) {modelReady = false;updatePhotoControls();}
+    setTimeout(pollModel, 1500);
+  }
 
   function finishSlide() {
     if (animationFrame !== null) cancelAnimationFrame(animationFrame);
@@ -270,6 +409,10 @@
       presentFrame(data.state);
     }
     if (data.state) {
+      if (currentState && currentState.pending && !data.state.pending)
+        photoMessage.textContent = 'Valg behandlet. Registreret i dag: ' + formatter.format(data.state.today) + ' kcal. Du kan scanne igen.';
+      currentState = data.state;
+      updatePhotoControls();
       document.getElementById('screen-name').textContent = names[data.state.side] || 'Skærmvisning';
       document.getElementById('today').textContent = formatter.format(data.state.today) + ' kcal';
       document.getElementById('weekly').textContent = formatter.format(data.state.weekly) + ' kcal';
@@ -329,6 +472,7 @@
     screen.classList.toggle('smooth', !event.target.checked);
   });
   document.addEventListener('keydown', event => {
+    if (photoBusy) return;  // Tastetryk fra ventetiden maa ikke bekraefte et endnu uset resultat.
     if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
     if (event.target.closest('input, select, textarea, button, a, summary, [contenteditable="true"]')) return;
     const action = {ArrowUp:'up', ArrowDown:'down', Enter:'press', Escape:'back', '+':'add'}[event.key];
@@ -337,6 +481,7 @@
     enqueue(action);
   });
   poll();
+  pollModel();
 </script>
 </body>
 </html>

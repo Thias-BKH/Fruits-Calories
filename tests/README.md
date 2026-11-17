@@ -6,12 +6,15 @@ Kør fra repositoryets rod med en C++17-compiler og Python 3:
 clang++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I KalorieApp tests/meal_confirmation.cpp -o /tmp/kalorie-meal-test
 /tmp/kalorie-meal-test
 python3 tests/preview_reload.py
+python3 tests/local_photo.py
 ```
 
 Testene kontrollerer, at scanning og afvisning ikke registrerer noget; at kun
 Accepter tilføjer kalorier; og at gentagne tryk, nye billeder og hot reload ikke
 giver dobbeltregistrering. De dækker også vedvarende data, usikre/ukendte klasser,
-et trin pr. fysisk swipe, RGB-chunks, buffergrænser og rendering.
+et trin pr. fysisk swipe, RGB-chunks, buffergrænser og rendering. `local_photo.py` bygger/kører den rigtige model
+på forskellige RGB-input, kontrollerer at pixeldata ændrer modellens scores,
+og at et ventende forslag ikke overskrives. Første modelbygning kan tage et par minutter.
 
 ## Samlet ESP32-build
 
