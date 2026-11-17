@@ -1,0 +1,22 @@
+SAMLET VERSION: ESP32-WROOM-32 + OPENMV LCD SHIELD + FEM TOUCHFELTER
+
+Bekraeftet pinmap:
+Skaerm SDI=23, SCK=18, RS=25, CS=27, RST=22, LED=21.
+Touch fra top til bund: 32, 33, 4, 14, 13.
+Pin-konflikter kontrolleres ogsaa ved kompilering.
+
+Bygget med ESP32 Dev Module / Arduino-ESP32 3.3.12: BESTAAET.
+Program: 524915 bytes af 1310720.
+Globale data: 65360 bytes af 327680.
+
+Native softwaretests med address/undefined-sanitizer: BESTAAET.
+- Tryk, bounce, kort kontaktudfald og signalstoej
+- Swipe op/ned uden falsk klik ved slip
+- Langt tryk uden ekstra klik ved slip
+- millis()-rollover
+- Et menutrin pr. fysisk swipe og kontinuerlige trin i talfelter
+- Skift mellem Gem/Fortryd og talfelt uden utilsigtede ekstratrin
+- Appnavigation, lys-preview, nulstilling, gemmeformat og rendering
+
+Ingen automatisk overfoersel til hardware er foretaget.
+Sensorens faktiske niveauer og foelsomhed skal afproeves paa den nye opstilling.

@@ -1,0 +1,8 @@
+# macOS metadata
+.DS_Store
+__MACOSX/
+._*
+
+# Python preview cache
+__pycache__/
+*.py[cod]
