@@ -222,6 +222,29 @@ namespace AppDraw {
          "Nulstil", true, app.fokus == Fokus::Gem, app.trykFeedback);
     hjaelp(p, app);
   }
+
+  inline void maaltid(uint16_t* p, const KalorieAppModel& app) {
+    sidetitel(p, app, "Bekræft frugt");
+    centrer(p, app.forslag.frugt, "", 16, 47);
+    char tal[32];
+    snprintf(tal, sizeof(tal), "%lu kcal", static_cast<unsigned long>(app.forslag.kcal));
+    centrer(p, tal, "", 20, 76);
+    snprintf(tal, sizeof(tal), "Standard: %u g", unsigned(app.forslag.gram));
+    centrer(p, tal, "", 10, 96, AppConfig::GRAA_TEKST);
+    centrer(p, "Ikke registreret endnu", "", 10, 110, AppConfig::GRAA_TEKST);
+    knap(p, 6, 120, 46, "Afvis", false, app.fokus == Fokus::Fortryd, app.trykFeedback);
+    knap(p, 57, 120, 65, "Accepter", true, app.fokus == Fokus::Gem, app.trykFeedback);
+    centrer(p, app.fokus == Fokus::Gem ? "Tryk: accepter" : "Tryk: afvis", "", 10, 155,
+            AppConfig::GRAA_TEKST);
+  }
+
+  inline void scanFejl(uint16_t* p, const KalorieAppModel& app) {
+    sidetitel(p, app, "Prøv igen");
+    centrer(p, app.scanFejl, "", 11, 60, AppConfig::HVID);
+    centrer(p, "Tag et nyt billede", "", 10, 82, AppConfig::GRAA_TEKST);
+    centrer(p, "Intet registreret", "", 10, 101, AppConfig::GRAA_TEKST);
+    knap(p, 25, 120, 78, "Tilbage", true, true, app.trykFeedback);
+  }
 }
 
 // Eneste tegnefunktion, som hovedprogrammet behoever at kalde.
@@ -233,5 +256,7 @@ inline void tegnApp(uint16_t* pixels, const KalorieAppModel& app) {
     case Side::Ugemaal:
     case Side::Lysstyrke: AppDraw::rediger(pixels, app); break;
     case Side::Nulstil: AppDraw::nulstil(pixels, app); break;
+    case Side::Maaltid: AppDraw::maaltid(pixels, app); break;
+    case Side::ScanFejl: AppDraw::scanFejl(pixels, app); break;
   }
 }

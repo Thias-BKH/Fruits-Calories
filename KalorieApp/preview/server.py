@@ -14,7 +14,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = Path(__file__).resolve().parent
-ACTIONS = {"up", "down", "press", "back", "add", "day", "week", "restart"}
+ACTIONS = {"up", "down", "press", "back", "add", "apple", "banana", "background", "uncertain", "day", "week", "restart"}
 
 
 class PreviewEngine:
@@ -81,7 +81,11 @@ class PreviewEngine:
             s = self.state
             values = [s[k] for k in ("weekly", "today", "previous", "brightness",
                                      "side", "fokus", "row", "draft")]
-            self.exchange("restore", " ".join(map(str, values)))
+            values += [int(s.get("pending", False)), s.get("pendingKcal", 0),
+                       s.get("pendingGrams", 0), s.get("confidence", 0)]
+            extra = " ".join(map(str, values)) + " " + json.dumps(s.get("fruit", ""), ensure_ascii=False)
+            extra += " " + json.dumps(s.get("scanError", ""), ensure_ascii=False)
+            self.exchange("restore", extra)
         print("Preview klar – designet er opdateret.", flush=True)
 
     def read_exact(self, count, deadline):

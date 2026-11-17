@@ -6,8 +6,17 @@
 #include "input_typer.h"
 
 // Denne fil bestemmer navigation og data. Den kan testes uden skaermhardware.
-enum class Side : uint8_t { Forside, Indstillinger, Ugemaal, Lysstyrke, Nulstil };
+enum class Side : uint8_t { Forside, Indstillinger, Ugemaal, Lysstyrke, Nulstil, Maaltid, ScanFejl };
 enum class Fokus : uint8_t { Vaerdi, Gem, Fortryd };
+
+// Et scanningsresultat er midlertidigt. Det er aldrig en del af AppData/NVS.
+struct MaaltidsForslag {
+  char frugt[24] = {};
+  uint32_t kcal = 0;
+  uint16_t gram = 0;
+  uint8_t sikkerhed = 0;
+  bool aktiv = false;
+};
 
 struct AppData {
   KalorieData kalorier = AppConfig::START_KALORIER;
@@ -25,6 +34,38 @@ class KalorieAppModel {
   bool skalGemmes = false;
   bool trykFeedback = false;
   char besked[40] = {};
+  MaaltidsForslag forslag;
+  char scanFejl[40] = {};
+
+  bool kanScanne() const {
+    return !forslag.aktiv && (side == Side::Forside || side == Side::Indstillinger || side == Side::ScanFejl);
+  }
+
+  // Classifieren maa kun foreslaa. Et nyt billede maa ikke udskifte et ventende forslag.
+  bool foreslaaMaaltid(const char* frugt, uint32_t kcal, uint16_t gram,
+                      uint8_t sikkerhed, uint32_t nu) {
+    if (!kanScanne() || !frugt || !frugt[0] || !kcal || kcal > 1000000 || !gram || sikkerhed > 100)
+      return false;
+    snprintf(forslag.frugt, sizeof(forslag.frugt), "%s", frugt);
+    forslag.kcal = kcal;
+    forslag.gram = gram;
+    forslag.sikkerhed = sikkerhed;
+    forslag.aktiv = true;
+    side = Side::Maaltid;
+    fokus = Fokus::Fortryd;  // Afvis er standard, ogsaa ved meget sikker genkendelse.
+    trykFeedback = false;
+    besked[0] = 0;
+    skalTegnes = true;
+    (void)nu;
+    return true;
+  }
+
+  void visScanFejl(const char* fejl) {
+    if (!kanScanne()) return;
+    snprintf(scanFejl, sizeof(scanFejl), "%s", fejl);
+    side = Side::ScanFejl;
+    skalTegnes = true;
+  }
 
   // Laesning af gemte data aendrer ikke tekster, farver eller layoutindstillinger.
   void indlaes(const AppData& gemt) { data = gemt; skalTegnes = true; }
@@ -42,6 +83,21 @@ class KalorieAppModel {
       feedbackSlut = nu + AppConfig::TRYK_FEEDBACK_MS;
     }
     if (event == Input::Tilbage) { tilbage(nu); return; }
+
+    if (side == Side::ScanFejl) { side = Side::Forside; return; }
+    if (side == Side::Maaltid) {
+      if (event == Input::SwipeOp || event == Input::SwipeNed)
+        fokus = fokus == Fokus::Gem ? Fokus::Fortryd : Fokus::Gem;
+      if (event == Input::Tryk) {
+        const bool accepter = forslag.aktiv && fokus == Fokus::Gem;
+        const uint32_t kcal = forslag.kcal;
+        forslag = MaaltidsForslag{};  // Forbrug foer registrering: kan kun accepteres en gang.
+        side = Side::Forside;
+        if (accepter) registrerMaaltid(kcal, nu);
+        else visBesked("Scanning afvist", nu);
+      }
+      return;
+    }
 
     if (side == Side::Forside) {
       side = Side::Indstillinger;
@@ -109,12 +165,20 @@ class KalorieAppModel {
   // Fortryd forlader kladden uden at overskrive det gemte maal/lys.
   void tilbage(uint32_t nu) {
     if (side == Side::Forside) return;
+    if (side == Side::Maaltid || side == Side::ScanFejl) {
+      forslag = MaaltidsForslag{};
+      side = Side::Forside;
+      visBesked("Scanning afvist", nu);
+      skalTegnes = true;
+      return;
+    }
     if (side == Side::Indstillinger) side = Side::Forside;
     else { side = Side::Indstillinger; visBesked("Annulleret", nu); }
     skalTegnes = true;
   }
 
-  // Kald denne funktion fra den senere telefon/maaltidsintegration.
+ private:
+  // Kun bekraeftelsestrinnet maa skrive et scannet maaltid til kalorietaelleren.
   void registrerMaaltid(uint32_t kcal, uint32_t nu) {
     uint64_t sum = static_cast<uint64_t>(data.kalorier.spistIDag) + kcal;
     data.kalorier.spistIDag = sum > 1000000 ? 1000000 : static_cast<uint32_t>(sum);
@@ -123,14 +187,17 @@ class KalorieAppModel {
     visBesked("Kalorier tilføjet", nu);
   }
 
+ public:
   // Kalenderen er endnu ikke tilkoblet. Disse funktioner kan senere kaldes af telefonen.
   void nyDag(uint32_t nu) {
+    if (forslag.aktiv) tilbage(nu);
     uint64_t sum = static_cast<uint64_t>(data.kalorier.spistTidligereDage) + data.kalorier.spistIDag;
     data.kalorier.spistTidligereDage = sum > 1000000 ? 1000000 : static_cast<uint32_t>(sum);
     data.kalorier.spistIDag = 0;
     skalGemmes = true; skalTegnes = true; visBesked("Ny dag", nu);
   }
   void nyUge(uint32_t nu) {
+    if (forslag.aktiv) tilbage(nu);
     data.kalorier.spistIDag = 0; data.kalorier.spistTidligereDage = 0;
     skalGemmes = true; skalTegnes = true; visBesked("Ny uge", nu);
   }

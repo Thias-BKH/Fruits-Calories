@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <string.h>
+#include <stdlib.h>
 #include "app_visning.h"
 
 // Preview og ESP32 bruger samme varighed, retning og bevaegelseskurve.
@@ -46,12 +47,13 @@ namespace AppMotion {
   }
 }
 
-// Global instans: en ekstra 40 KB buffer, ingen store arrays paa task-stakken.
+// Bufferen bruges kun under sideskift og frigives inden billedgenkendelse.
 class AppOvergang {
  public:
+  ~AppOvergang() { free(foer); }
   bool erAktiv() const { return aktiv; }
 
-  void nulstil() { klar = false; aktiv = false; }
+  void nulstil() { klar = false; aktiv = false; free(foer); foer = nullptr; }
 
   void tegn(uint16_t* pixels, const KalorieAppModel& app, uint32_t nu) {
     if (!klar) {
@@ -62,17 +64,20 @@ class AppOvergang {
     }
     if (app.side != vistSide) {
       // Ogsaa ved hurtige tryk starter vi fra det billede, brugeren faktisk ser.
-      memcpy(foer, pixels, sizeof(foer));
+      if (!foer && AppConfig::OVERGANG_MS > 0)
+        foer = static_cast<uint16_t*>(malloc(SKAERM_BYTES));
+      if (foer) memcpy(foer, pixels, SKAERM_BYTES);
       vej = AppMotion::retning(vistSide, app.side);
       vistSide = app.side;
       start = nu;
-      aktiv = AppConfig::OVERGANG_MS > 0;
+      aktiv = foer && AppConfig::OVERGANG_MS > 0;
     }
     tegnApp(pixels, app);
     if (!aktiv) return;
     const uint32_t forloebet = nu - start;
     if (forloebet >= AppConfig::OVERGANG_MS) {
       aktiv = false;
+      free(foer); foer = nullptr;
       return;
     }
     const int skridt = static_cast<int>(AppMotion::fremgang(forloebet) * SKAERM_BREDDE + 0.5f);
@@ -80,7 +85,8 @@ class AppOvergang {
   }
 
  private:
-  uint16_t foer[SKAERM_BREDDE * SKAERM_HOEJDE];
+  static constexpr size_t SKAERM_BYTES = SKAERM_BREDDE * SKAERM_HOEJDE * sizeof(uint16_t);
+  uint16_t* foer = nullptr;
   Side vistSide = Side::Forside;
   uint32_t start = 0;
   int8_t vej = 1;

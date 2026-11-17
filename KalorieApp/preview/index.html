@@ -110,7 +110,12 @@
       <section class="panel">
         <h2>Testdata</h2>
         <div class="tests">
-          <button type="button" data-action="add"><span>Tilføj 100 kcal</span><kbd>+</kbd></button>
+          <button type="button" data-action="apple"><span>Simulér scanning: Æble</span><kbd>+</kbd></button>
+          <button type="button" data-action="banana">Simulér scanning: Banan</button>
+          <div class="minor">
+            <button type="button" data-action="background">Baggrund</button>
+            <button type="button" data-action="uncertain">Usikkert resultat</button>
+          </div>
           <div class="minor">
             <button type="button" data-action="day">Ny dag</button>
             <button type="button" data-action="week">Ny uge</button>
@@ -121,8 +126,9 @@
           <dt>Spist i dag</dt><dd id="today">—</dd>
           <dt>Ugentligt mål</dt><dd id="weekly">—</dd>
           <dt>Valgt lysstyrke</dt><dd id="brightness">—</dd>
+          <dt>Afventer accept</dt><dd id="pending">—</dd>
         </dl>
-        <p class="help" style="margin-top:12px">Kun simulatorens data. Genstart indlæser startværdierne fra din kode.</p>
+        <p class="help" style="margin-top:12px">Simulerede modelresultater. Swipe til “Accepter” på skærmen og tryk for at registrere. “Afvis” er valgt fra start. Der køres ingen billedgenkendelse i simulatoren.</p>
       </section>
 
       <section class="panel">
@@ -153,7 +159,7 @@
   targetContext.imageSmoothingEnabled = false;
   previousContext.imageSmoothingEnabled = false;
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-  const names = ['Forside', 'Indstillinger', 'Ugentligt mål', 'Lysstyrke', 'Nulstil data'];
+  const names = ['Forside', 'Indstillinger', 'Ugentligt mål', 'Lysstyrke', 'Nulstil data', 'Bekræft frugt', 'Prøv igen'];
   const formatter = new Intl.NumberFormat('da-DK');
   let queue = Promise.resolve();
   let hasFrame = false;
@@ -268,6 +274,8 @@
       document.getElementById('today').textContent = formatter.format(data.state.today) + ' kcal';
       document.getElementById('weekly').textContent = formatter.format(data.state.weekly) + ' kcal';
       document.getElementById('brightness').textContent = formatter.format(data.state.activeBrightness) + ' %';
+      document.getElementById('pending').textContent = data.state.pending
+        ? data.state.fruit + ' · ' + data.state.pendingKcal + ' kcal' : 'Intet';
     }
     if (data.error) {
       connection('Ret fejl i koden', 'error');

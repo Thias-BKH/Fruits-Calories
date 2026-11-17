@@ -16,6 +16,7 @@
 #include "data_lager.h"
 #include "touch_input.h"
 #include "touch_routing.h"
+#include "frugt_scanner.h"
 
 // SAMLET PROGRAM: Skaerm og jeres fem touchfelter sidder paa samme ESP32.
 // Skift skaermben/farver/layout i app_indstillinger.h.
@@ -39,8 +40,15 @@ void opdaterLys() {
   else digitalWrite(AppConfig::PIN_LED, HIGH);
 }
 
-// Fremtidig telefon-/maaltidsintegration kalder denne funktion med antal kcal.
-void registrerMaaltid(uint32_t kcal) { app.registrerMaaltid(kcal, millis()); }
+// Samme 40 KB bruges til skaermpixels og RGB-billede paa skift, aldrig samtidig.
+void visScanning() {
+  overgang.nulstil();
+  app.skalTegnes = true;  // Gendan app-pixels efter upload, ogsaa hvis forbindelsen afbrydes.
+  memset(skaermPixels, 0, sizeof(skaermPixels));
+  AppDraw::centrer(skaermPixels, "Scanner...", "", 16, 65, AppConfig::GROEN);
+  AppDraw::centrer(skaermPixels, "Vent på resultatet", "", 10, 90);
+  tft.drawRGBBitmap(0, 0, skaermPixels, 128, 160);
+}
 
 // Computerinput er bevaret som test og som hjaelp under justering af sensoren.
 void laesComputer() {
@@ -50,11 +58,13 @@ void laesComputer() {
     if (c == 'd' || c == 'D') app.input(Input::SwipeNed, millis());
     if (c == 'p' || c == 'P') app.input(Input::Tryk, millis());
     if (c == 'b' || c == 'B') app.input(Input::Tilbage, millis());
-    if (c == '+') registrerMaaltid(100);
+    if (c == '+' || c == 's') FrugtKalorier::modtag(app, "Æble", .95f, millis());
+    if (c == 'f') FrugtKalorier::modtag(app, "Banan", .91f, millis());
+    if (c == 'x') FrugtKalorier::modtag(app, "Background", .98f, millis());
     // Manuelle testkommandoer, indtil telefon/ur giver datoen.
     if (c == 'n') app.nyDag(millis());
     if (c == 'v') app.nyUge(millis());
-    if (c == '?') Serial.println("u=op, d=ned, p=tryk, b=tilbage, +=100 kcal, n=ny dag, v=ny uge");
+    if (c == '?') Serial.println("u=op, d=ned, p=tryk, b=tilbage, s/+=test-aeble, f=test-banan, x=baggrund, n=ny dag, v=ny uge");
   }
 }
 
@@ -94,6 +104,8 @@ void setup() {
   Serial.println(touchKlar ? "Touch og skaerm klar paa samme ESP32-WROOM-32."
                           : "Touchopgaven kunne ikke starte. Serial-test er stadig mulig.");
   Serial.println("Serial Monitor: 115200 baud. Send ? for hjaelp.");
+  const bool scannerKlar = FrugtScanner::start(app, skaermPixels, sizeof(skaermPixels), visScanning);
+  if (!scannerKlar) { app.visScanFejl("Wi-Fi kunne ikke starte"); Serial.println("Scanner kunne ikke starte."); }
 
   overgang.tegn(skaermPixels, app, millis());
   tft.drawRGBBitmap(0, 0, skaermPixels, 128, 160);
@@ -102,6 +114,12 @@ void setup() {
 }
 
 void loop() {
+  // Billedmodtagelse og inferens er synkron. Drop gamle touch-events fra ventetiden,
+  // saa de ikke kan vaelge Accepter, naar resultatet foerst bliver synligt.
+  if (FrugtScanner::opdater()) {
+    TouchEvent gammel;
+    while (TouchInput::laes(gammel)) {}
+  }
   // Touch-opgaven leverer events via en koe. Kun denne loekke aendrer appen.
   TouchEvent event;
   while (TouchInput::laes(event)) touchRouting.handle(event, app, millis());

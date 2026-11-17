@@ -2,7 +2,9 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <iomanip>
 #include "app_overgang.h"
+#include "frugt_kalorier.h"
 
 int main() {
   KalorieAppModel app;
@@ -23,12 +25,23 @@ int main() {
       app.side = static_cast<Side>(side);
       app.fokus = static_cast<Fokus>(focus);
       app.valgtRaekke = static_cast<uint8_t>(row);
+      unsigned active = 0, gram = 0, confidence = 0;
+      std::string fruit, error;
+      input >> active >> app.forslag.kcal >> gram >> confidence >> std::quoted(fruit) >> std::quoted(error);
+      app.forslag.aktiv = active;
+      app.forslag.gram = gram;
+      app.forslag.sikkerhed = confidence;
+      snprintf(app.forslag.frugt, sizeof(app.forslag.frugt), "%s", fruit.c_str());
+      snprintf(app.scanFejl, sizeof(app.scanFejl), "%s", error.c_str());
     } else if (action == "restart") app = KalorieAppModel();
     else if (action == "up") app.input(Input::SwipeOp, now);
     else if (action == "down") app.input(Input::SwipeNed, now);
     else if (action == "press") app.input(Input::Tryk, now);
     else if (action == "back") app.input(Input::Tilbage, now);
-    else if (action == "add") app.registrerMaaltid(100, now);
+    else if (action == "add" || action == "apple") FrugtKalorier::modtag(app, "Æble", .95f, now);
+    else if (action == "banana") FrugtKalorier::modtag(app, "Banan", .91f, now);
+    else if (action == "background") FrugtKalorier::modtag(app, "Background", .98f, now);
+    else if (action == "uncertain") FrugtKalorier::modtag(app, "Æble", .4f, now);
     else if (action == "day") app.nyDag(now);
     else if (action == "week") app.nyUge(now);
     app.tick(now);
@@ -48,6 +61,12 @@ int main() {
               << ",\"previous\":" << app.data.kalorier.spistTidligereDage
               << ",\"brightness\":" << unsigned(app.data.lysstyrke)
               << ",\"activeBrightness\":" << unsigned(app.aktivLysstyrke())
+              << ",\"pending\":" << (app.forslag.aktiv ? "true" : "false")
+              << ",\"pendingKcal\":" << app.forslag.kcal
+              << ",\"pendingGrams\":" << app.forslag.gram
+              << ",\"confidence\":" << unsigned(app.forslag.sikkerhed)
+              << ",\"fruit\":" << std::quoted(app.forslag.frugt)
+              << ",\"scanError\":" << std::quoted(app.scanFejl)
               << ",\"sideDepth\":" << unsigned(AppMotion::niveau(app.side))
               << ",\"transitionMs\":" << AppConfig::OVERGANG_MS
               << "}\n";

@@ -1,7 +1,8 @@
 # KalorieApp – ESP32-WROOM-32 med skærm og touchslider
 
 Denne mappe er **ét samlet program til ét ESP32-WROOM-32-kort**.
-Det samler skærmappen med algoritmen fra jeres `Kcaltracker-button.ino`.
+Det samler skærmappen, jeres touchslider og Edge Impulse RGB-model 1.0.8.
+Et foto giver først et forslag; kun **Accepter** registrerer kalorier.
 
 ## 1. De bekræftede ledninger
 
@@ -38,10 +39,13 @@ Der er også kontrol af pin-konflikter i koden, hvis I senere ændrer benene.
 
 1. Åbn **KalorieApp.ino** i Arduino IDE. Behold alle filerne i mappen sammen.
 2. Vælg **Tools → Board → esp32 → ESP32 Dev Module**.
-3. Vælg USB-porten til WROOM-32-kortet. Ved klargøring var den `/dev/cu.usbserial-0001`.
+3. Vælg USB-porten til WROOM-32-kortet. På et kort med 4 MB flash: vælg
+   **Flash Size → 4MB (32Mb)** og
+   **Partition Scheme → Huge APP (3MB No OTA/1MB SPIFFS)**.
 4. Brug den installerede **esp32 by Espressif Systems 3.3.12** og de eksisterende
    biblioteker **Adafruit GFX**, **Adafruit ST7735 and ST7789** og **Adafruit BusIO**.
-5. Klik **Upload**.
+5. Installer RGB-modelbibliotek **1.0.8** via **Add .ZIP Library…** fra zip-filen i
+   repositoryets `models/`-mappe. Klik derefter **Upload**.
 6. Hold fingrene væk fra touchfelterne, mens skærmen viser **Kalibrerer...**.
    Kalibreringen tager cirka 1–2 sekunder og sker ved hver genstart.
 
@@ -49,7 +53,22 @@ Der skal kun være denne ene `setup()` og `loop()` i projektet. Den gamle knapfi
 er allerede flettet ind i filerne nedenfor og skal ikke indsættes som en ekstra
 `.ino`-fane i samme mappe.
 
-## 3. Sådan virker betjeningen
+## 3. Scan og bekræft
+
+Forbind telefonen til **FruitClassifier**, kode **fruit1234**, og åbn
+**http://192.168.4.1**. Tag/vælg et foto af ét æble eller én banan og tryk **Scan frugt**.
+ESP32 kører modellen og viser frugt, kcal og den faste standardportion.
+
+**Afvis** er valgt fra start. Swipe til **Accepter** og tryk kort for at registrere.
+Afvis eller langt tilbage-tryk tilføjer intet. Et nyt billede kan ikke erstatte
+et forslag, mens du er ved at bekræfte det. Forslaget gemmes ikke ved genstart.
+
+Portioner: æble **150 g → 69 kcal**, banan **120 g → 106 kcal**, spiselig del.
+De er prototypevalg, ikke målte vægte. Energikilder og tilpasning står i
+[README](../README.md#standardportioner) og `frugt_kalorier.h`.
+Baggrund, ukendte klasser og sikkerhed under 60 % giver besked om at prøve igen.
+
+### Øvrig betjening
 
 - **Kort tryk:** Vælg/åbn den markerede handling.
 - **Swipe op eller ned:** Flyt markeringen i menuen eller ændr tallet på en indstillingsside.
@@ -121,7 +140,9 @@ Den tidligere computerbetjening fungerer også:
 | `p` | Tryk |
 | `u` / `d` | Swipe op/ned |
 | `b` | Tilbage |
-| `+` | Tilføj 100 kcal |
+| `s` / `+` | Simulér æbleforslag; kræver Accepter |
+| `f` | Simulér bananforslag; kræver Accepter |
+| `x` | Simulér baggrund; intet registreres |
 | `n` | Manuel test af ny dag |
 | `v` | Manuel test af ny uge |
 | `?` | Vis hjælp |
@@ -137,9 +158,10 @@ Startdata er **16.000 kcal pr. uge, 0 kcal spist i dag og 0 fra tidligere dage**
 På det nye kort bruges startværdierne første gang; derefter læses dets egne gemte data.
 Data på et andet ESP32-kort overføres ikke automatisk mellem kortene.
 
-Dato og telefon/foto er endnu ikke koblet til. Dag/uge skifter derfor fortsat
-manuelt i denne prototype. `registrerMaaltid(kcal)`, `nyDag()` og `nyUge()` er klar
-til den senere integration.
+Telefon/foto og modellen er koblet til. Scanningsresultatet går gennem
+`FrugtKalorier::modtag(...)` til et midlertidigt forslag i appmodellen.
+Kalorier gemmes først efter Accepter. Dato er endnu ikke koblet til; dag/uge
+skifter fortsat manuelt med `nyDag()` og `nyUge()` i denne prototype.
 
 ## 8. Kontrol og hardwareafprøvning
 
@@ -158,3 +180,17 @@ afprøves efter upload.
 
 Officiel reference for ESP32's touch-API:
 https://docs.espressif.com/projects/arduino-esp32/en/latest/api/touch.html
+
+
+## 9. Kontrol af den samlede version
+
+Softwaretests dækker: ingen registrering før accept, standardvalget Afvis,
+tilbage/afvis, gentagne tryk, nyt billede mens et forslag venter, baggrund,
+ukendte klasser, usikre resultater, gemmeformat, RGB-buffergrænser og hot reload.
+Det samlede program er kompileret med ESP32 Dev Module og Huge APP.
+
+Fysisk test af denne version mangler. Kontrollér især gentagne scanninger og
+modelkørslens RAM på det faktiske kort. En modelfejl vises på skærmen og i
+Serial Monitor; den kan ikke registrere kalorier. Skærm/navigation venter under
+billedmodtagelse og modelkørsel, mens touch-sampling fortsætter. Gamle events
+fra ventetiden kasseres, før resultatet betjenes.
