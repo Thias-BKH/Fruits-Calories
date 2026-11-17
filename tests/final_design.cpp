@@ -10,6 +10,7 @@ int main() {
   assert(app.data.kalorier.ugentligtMaal == 14000);
   assert(app.data.kalorier.spistIDag == 0 && app.data.lysstyrke == 75);
   assert(beregnKalorier(app.data.kalorier).tilbageIDag == 2000);
+  assert(beregnKalorier(app.data.kalorier).groentAfBaren == 0);
   app.input(Input::Tryk, 0);
   app.input(Input::SwipeOp, 1);
   assert(app.valgtRaekke == 0);  // Den graa pil maa ikke flytte forbi foerste raekke.
@@ -54,10 +55,16 @@ int main() {
   app.input(Input::SwipeNed, 37);
   app.input(Input::Tryk, 38);
   assert(app.data.kalorier.spistIDag == 106);
+  assert(beregnKalorier(app.data.kalorier).groentAfBaren > 0);
   assert(beregnKalorier(app.data.kalorier).tilbageIDag == 1908);  // 14100/7 = 2014.
   app.gemningFaerdig(true, 39);
   app.data.kalorier.spistIDag = 3000;
   assert(beregnKalorier(app.data.kalorier).tilbageIDag == 0);
+  assert(beregnKalorier(app.data.kalorier).groentAfBaren == 255);
+  assert(beregnKalorier({14000,1000,0}).groentAfBaren == 128);
+  assert(beregnKalorier({14000,2000,0}).groentAfBaren == 255);
+  assert(beregnKalorier({14000,1000000,0}).groentAfBaren == 255);
+  assert(beregnKalorier({0,0,0}).groentAfBaren == 0);
 
   app.input(Input::Tryk, 40);
   app.input(Input::SwipeNed, 41);
@@ -86,5 +93,5 @@ int main() {
     tegnApp(pixels.data()+1,app);
     assert(pixels.front() == 0x1234 && pixels.back() == 0x1234);
   }
-  std::cout << "PASS: single-press save, cancellation, bounded selection, remaining kcal, retry and rendering\n";
+  std::cout << "PASS: single-press save, cancellation, bounded selection, increasing calorie progress, retry and rendering\n";
 }

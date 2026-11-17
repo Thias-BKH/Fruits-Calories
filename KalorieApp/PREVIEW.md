@@ -28,7 +28,7 @@ ikke tilføjet berøringsstyring direkte på den virtuelle skærm.
 
 ## Det nye design og betjeningsflow
 
-- Forsiden viser dagens resterende kcal og en ring, der falder ved accept.
+- Forsidens tal og ring starter på 0 og stiger med accepterede kcal (kcal spist).
 - Swipe flytter markeringen; en nedtonet pil ved højre kant angiver en grænse.
 - På ugemål og lysstyrke ændrer swipe værdien. **Ét tryk gemmer**.
 - **Escape/Tilbage** annullerer en ændring. På kortet bruges langt tryk.

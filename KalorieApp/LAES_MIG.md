@@ -160,7 +160,8 @@ med fingrene væk fra felterne.
 
 Appens menu, ugemål, lysstyrke, nulstilling, grøn ring og gemte valg er med.
 Startdata er **14.000 kcal pr. uge, 0 kcal spist i dag, 0 fra tidligere dage og 75 % lysstyrke**.
-Forsidens tal og ring viser kalorier tilbage i dag. Ugens tal viser spiste kcal.
+Forsidens tal og ring viser spiste kalorier i dag, starter på 0 og stiger ved accept.
+Ringen stopper ved fuld, mens tallet kan fortsætte over dagsmålet. Ugens tal viser spiste kcal.
 På det nye kort bruges startværdierne første gang; derefter læses dets egne gemte data.
 Data på et andet ESP32-kort overføres ikke automatisk mellem kortene.
 
@@ -174,7 +175,7 @@ skifter fortsat manuelt med `nyDag()` og `nyUge()` i denne prototype.
 Det nye design er kompileret med **ESP32 Dev Module, Arduino-ESP32 3.3.12** og
 **Huge APP** den 17. november 2026:
 
-- 1.472.899 bytes program, cirka 46 % af 3 MB-programpartitionen.
+- 1.472.891 bytes program, cirka 46 % af 3 MB-programpartitionen.
 - 101.716 bytes globale data, cirka 31 % af RAM-grænsen i buildrapporten.
 
 Tallene er fra kompileringen. Modelkørslens midlertidige RAM og hastighed skal

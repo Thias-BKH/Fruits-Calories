@@ -134,13 +134,13 @@ namespace AppDraw {
   inline void forside(uint16_t* p, const KalorieAppModel& app) {
     const KalorieTal tal = beregnKalorier(app.data.kalorier);
     ring(p, tal.groentAfBaren, AppConfig::GROEN);
-    char tilbage[24], maal[24], uge[64], ugeMaal[24];
-    snprintf(tilbage, sizeof(tilbage), "%lu/", static_cast<unsigned long>(tal.tilbageIDag));
+    char spist[24], maal[24], uge[64], ugeMaal[24];
+    snprintf(spist, sizeof(spist), "%lu/", static_cast<unsigned long>(app.data.kalorier.spistIDag));
     snprintf(maal, sizeof(maal), "%lu", static_cast<unsigned long>(tal.dagligtMaal));
-    centrer(p, tilbage, maal, AppConfig::FONT_FORSIDE.dagensTal, AppConfig::DAGSTAL_Y,
+    centrer(p, spist, maal, AppConfig::FONT_FORSIDE.dagensTal, AppConfig::DAGSTAL_Y,
             AppConfig::HVID, AppConfig::GRAA_TEKST, 92);
     const bool fejl = strcmp(app.besked, "Kunne ikke gemme") == 0;
-    centrer(p, fejl ? "Gemmefejl" : "kcal tilbage", "", AppConfig::FONT_FORSIDE.kcalTekst,
+    centrer(p, fejl ? "Gemmefejl" : "kcal spist", "", AppConfig::FONT_FORSIDE.kcalTekst,
             AppConfig::KCAL_TEKST_Y, fejl ? AppConfig::FEJL : AppConfig::HVID, AppConfig::HVID, 86);
     formaterDansk(app.data.kalorier.ugentligtMaal, ugeMaal, sizeof(ugeMaal));
     snprintf(uge, sizeof(uge), "Ugentligt mål: %lu/", static_cast<unsigned long>(tal.spistDenneUge));

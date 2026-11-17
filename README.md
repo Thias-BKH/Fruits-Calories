@@ -95,8 +95,9 @@ Et langt, roligt tryk på cirka **0,8 sekund** går tilbage og annullerer en kla
 I browseren bruges **↑ / ↓ / Enter / Escape** eller de tilsvarende testknapper.
 Der er ingen berøringsstyring på den virtuelle skærm.
 
-Forsiden viser **kalorier tilbage i dag / dagsmål**. Ringen viser samme resterende
-andel og falder efter Accepter. Ugens tal viser spiste kalorier i forhold til ugemålet.
+Forsiden viser **spiste kalorier i dag / dagsmål** med teksten **kcal spist**.
+Tallet og ringen starter på 0 og stiger efter Accepter. Ved dagsmålet er ringen
+fuld; tallet kan fortsætte over målet. Ugens tal viser spiste kalorier i forhold til ugemålet.
 Dagsmålet beregnes som ugemålet delt med syv. Startværdier er **14.000 kcal pr. uge,
 0 kcal registreret og 75 % lysstyrke**; eksisterende gemte data på ESP32 bevares.
 Billedoversigten ovenfor bruger 1.000 registrerede kcal for at vise en delvist fyldt ring.

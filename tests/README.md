@@ -19,7 +19,7 @@ på forskellige RGB-input, kontrollerer at pixeldata ændrer modellens scores,
 og at et ventende forslag ikke overskrives. Første modelbygning kan tage et par minutter.
 
 `final_design.cpp` kontrollerer direkte Gem med ét tryk, annullering, grænser for
-menu/valg, resterende kcal, nulstilling med bevaret mål og fejlskærmens Prøv igen.
+menu/valg, kalorieprogression fra 0 med fuld ring ved/over målet, nulstilling med bevaret mål og fejlskærmens Prøv igen.
 Alle skærmtyper tegnes med buffergrænsekontrol.
 
 `render_design.cpp` kan skrive de faktiske 128 × 160 RGB565-skærmbilleder til en

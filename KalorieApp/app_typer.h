@@ -26,8 +26,10 @@ inline KalorieTal beregnKalorier(const KalorieData& data) {
   const uint32_t dagligt = data.ugentligtMaal / 7;
   const uint32_t tilbage = data.spistIDag < dagligt
       ? dagligt - data.spistIDag : 0;
+  // Ringen vokser med accepterede kcal og stopper ved fuld, ogsaa over dagsmaalet.
+  const uint32_t spistOpTilMaal = data.spistIDag < dagligt ? data.spistIDag : dagligt;
   const uint8_t andel = dagligt > 0
-      ? static_cast<uint8_t>((static_cast<uint64_t>(tilbage) * 255
+      ? static_cast<uint8_t>((static_cast<uint64_t>(spistOpTilMaal) * 255
                              + dagligt / 2) / dagligt) : 0;
   return {dagligt, tilbage, data.spistTidligereDage + data.spistIDag, andel};
 }

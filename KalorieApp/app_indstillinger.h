@@ -25,7 +25,7 @@ namespace AppConfig {
   constexpr uint8_t FONT_MIN = 9;
   constexpr TekstStoerrelser FONT_FORSIDE{
     16, // Tallene i midten.
-    10, // "kcal tilbage".
+    10, // "kcal spist".
     9,  // "Ugentligt maal:".
     9   // Overskrift og ugetal paa samme linje.
   };
@@ -44,7 +44,7 @@ namespace AppConfig {
   constexpr int KCAL_TEKST_Y = 88;
   constexpr int UGEOVERSKRIFT_Y = 150;
   constexpr int UGETAL_Y = 150;
-  // Ring og tal viser dagens resterende kcal. Accepterede maaltider mindsker dem.
+  // Ring og tal starter fra 0 og stiger med dagens accepterede maaltider.
 
   // MENU: Tre raekker og en lille, separat "Tilbage"-mulighed nederst.
   constexpr const char* MENU_TEKSTER[3] = {
