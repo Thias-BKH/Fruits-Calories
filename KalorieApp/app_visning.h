@@ -61,86 +61,102 @@ namespace AppDraw {
     tegnTekst(p, b, f, x, y, andenFarve);
   }
 
-  // Vandret skyder. Groent fyld viser vaerdien; prikken markerer fokus.
-  inline void skyder(uint16_t* p, float andel, bool valgt) {
-    andel = klip(andel, 0, 1);
-    constexpr float x = 10, y = AppConfig::SKYDER_Y, w = 108, h = 4;
-    kort(p, x, y, w, h, 2, AppConfig::GRAA_BUE);
-    if (andel > 0) kort(p, x, y, fmaxf(4, w * andel), h, 2, AppConfig::GROEN);
-    if (valgt) kort(p, x + w * andel - 4, y - 2, 8, 8, 4, AppConfig::GROEN);
-  }
-
-  // Knaptekst placeres efter skrifttypens synlige hoejde, ikke blot dens billedfelt.
-  inline void knap(uint16_t* p, int x, int y, int w, const char* tekst,
-                   bool primaer, bool valgt, bool trykket) {
-    constexpr int h = AppConfig::KNAP_HOEJDE;
-    uint16_t fyld = primaer ? AppConfig::GROEN : AppConfig::KORT;
-    uint16_t kant = valgt && (primaer || trykket) ? AppConfig::HVID : AppConfig::GROEN;
-    kort(p, x, y, w, h, 11, fyld, kant, valgt ? 1.4f : 0);
-    const AAFont& f = tilpas(tekst, "", AppConfig::FONT_KNAP, w - 8);
-    int32_t tx = (x * 256) + (w * 256 - tekstBredde(tekst, f)) / 2;
-    int baseline = y + h / 2 + 4;
-    tegnTekst(p, tekst, f, tx, baseline, primaer ? AppConfig::SORT : AppConfig::HVID);
-  }
-
-  // Den eksisterende ring forstoerres med blanding af nabopixels, som i jeres seneste version.
-  inline void ring(uint16_t* p, uint8_t laengde, uint16_t farve) {
-    const int top = (160 - RING_HOEJDE) / 2;
-    const int midtX = 64;
-    const int midtY = AppConfig::RING_MIDTE_Y;
-    auto hent = [&](int x, int y) -> uint16_t {
-      const size_t i = y * RING_BREDDE + x;
-      bool aktiv = laengde > 0 && ringPosition[i] <= laengde;
-      return blandPixel(aktiv ? farve : AppConfig::GRAA_BUE, 0, ringAlpha[i]);
-    };
-    for (int y = 0; y < 160; ++y) {
-      float sy = (y - midtY) / AppConfig::RING_SKALA + midtY - top;
-      if (sy < 0 || sy >= RING_HOEJDE - 1) continue;
-      int y0 = static_cast<int>(sy);
-      uint8_t wy = static_cast<uint8_t>((sy - y0) * 255 + 0.5f);
-      for (int x = 0; x < 128; ++x) {
-        float sx = (x - midtX) / AppConfig::RING_SKALA + midtX;
-        if (sx < 0 || sx >= RING_BREDDE - 1) continue;
-        int x0 = static_cast<int>(sx);
-        uint8_t wx = static_cast<uint8_t>((sx - x0) * 255 + 0.5f);
-        uint16_t oeverst = blandPixel(hent(x0 + 1, y0), hent(x0, y0), wx);
-        uint16_t nederst = blandPixel(hent(x0 + 1, y0 + 1), hent(x0, y0 + 1), wx);
-        p[y * 128 + x] = blandPixel(nederst, oeverst, wy);
+  // Linjer og symboler tegnes i samme RGB565-buffer som resten af designet.
+  inline void linje(uint16_t* p, float x1, float y1, float x2, float y2,
+                    uint16_t farve, float tykkelse = 1.0f) {
+    const float dx = x2 - x1, dy = y2 - y1;
+    const float laengde2 = dx * dx + dy * dy;
+    for (int y = int(floorf(fminf(y1, y2) - tykkelse)); y <= int(ceilf(fmaxf(y1, y2) + tykkelse)); ++y)
+      for (int x = int(floorf(fminf(x1, x2) - tykkelse)); x <= int(ceilf(fmaxf(x1, x2) + tykkelse)); ++x) {
+        if (x < 0 || x >= 128 || y < 0 || y >= 160) continue;
+        const float t = laengde2 ? klip(((x-x1)*dx + (y-y1)*dy) / laengde2, 0, 1) : 0;
+        const float afstand = hypotf(x-x1-t*dx, y-y1-t*dy);
+        const float d = klip(tykkelse / 2 + .5f - afstand, 0, 1);
+        p[y*128+x] = blandPixel(farve, p[y*128+x], alpha(d));
       }
+  }
+
+  inline void sidebetjening(uint16_t* p, bool op, bool ned, int midteY = 80) {
+    const uint16_t opFarve = op ? AppConfig::HVID : AppConfig::DEMPET;
+    const uint16_t nedFarve = ned ? AppConfig::HVID : AppConfig::DEMPET;
+    linje(p, 119, midteY-8, 121.5f, midteY-10, opFarve);
+    linje(p, 121.5f, midteY-10, 124, midteY-8, opFarve);
+    kort(p, 119, midteY-2.5f, 5, 5, 2.5f, AppConfig::GROEN);
+    linje(p, 119, midteY+8, 121.5f, midteY+10, nedFarve);
+    linje(p, 121.5f, midteY+10, 124, midteY+8, nedFarve);
+  }
+
+  inline void knap(uint16_t* p, int x, int y, int w, const char* tekst,
+                   bool primaer, bool valgt, bool trykket, bool farlig = false) {
+    const uint16_t fyld = primaer ? AppConfig::GROEN : AppConfig::KORT;
+    const uint16_t kant = primaer ? AppConfig::HVID : AppConfig::GROEN;
+    kort(p, x, y, w, AppConfig::KNAP_HOEJDE, 11, fyld, kant, valgt ? 1.0f : 0);
+    const AAFont& f = tilpas(tekst, "", AppConfig::FONT_KNAP, w - 8);
+    const int32_t tx = x*256 + (w*256 - tekstBredde(tekst, f))/2;
+    const uint16_t tekstFarve = primaer ? AppConfig::SORT : farlig ? AppConfig::FEJL : AppConfig::HVID;
+    tegnTekst(p, tekst, f, tx, y + AppConfig::KNAP_HOEJDE/2 + 4, tekstFarve);
+    (void)trykket;
+  }
+
+  inline void skraldespand(uint16_t* p, int x, int y) {
+    kort(p, x+1, y+3, 6, 8, 1, AppConfig::FEJL);
+    linje(p, x, y+1, x+8, y+1, AppConfig::FEJL, 1.2f);
+    linje(p, x+3, y-1, x+5, y-1, AppConfig::FEJL, 1.2f);
+  }
+
+  // Cirkulaer bue med afrundede ender og en aabning oeverst, som i designet.
+  inline void ring(uint16_t* p, uint8_t laengde, uint16_t farve) {
+    constexpr float pi = 3.14159265359f;
+    constexpr float start = -70 * pi / 180;
+    constexpr float helBue = 320 * pi / 180;
+    const float radius = AppConfig::RING_RADIUS;
+    const float aktivBue = helBue * laengde / 255;
+    const float startX = radius*cosf(start), startY = radius*sinf(start);
+    const float slutX=radius*cosf(start+helBue), slutY=radius*sinf(start+helBue);
+    const float aktivX=radius*cosf(start+aktivBue), aktivY=radius*sinf(start+aktivBue);
+    auto afstand = [&](float x, float y, float vinkel, float bue, float endeX, float endeY) {
+      if (vinkel <= bue) return fabsf(hypotf(x,y)-radius);
+      return fminf(hypotf(x-startX,y-startY), hypotf(x-endeX,y-endeY));
+    };
+    for (int y = 0; y < 160; ++y) for (int x = 0; x < 128; ++x) {
+      const float dx=x-64.0f, dy=y-AppConfig::RING_MIDTE_Y;
+      if (fabsf(dx)>radius+3 || fabsf(dy)>radius+3) continue;
+      const float bredde=AppConfig::RING_TYKKELSE/2+.5f;
+      if (fabsf(hypotf(dx,dy)-radius)>bredde) continue;
+      float vinkel=atan2f(dy,dx)-start;
+      if (vinkel<0) vinkel+=2*pi;
+      uint16_t& pixel=p[y*128+x];
+      pixel=blandPixel(AppConfig::GRAA_BUE,pixel,alpha(klip(bredde-afstand(dx,dy,vinkel,helBue,slutX,slutY),0,1)));
+      if (laengde) pixel=blandPixel(farve,pixel,alpha(klip(bredde-afstand(dx,dy,vinkel,aktivBue,aktivX,aktivY),0,1)));
     }
   }
 
   inline void forside(uint16_t* p, const KalorieAppModel& app) {
-    // Den groenne ring og tallet viser dagens spiste kalorier.
     const KalorieTal tal = beregnKalorier(app.data.kalorier);
-    const float fremgang = tal.dagligtMaal > 0
-        ? klip(static_cast<float>(app.data.kalorier.spistIDag) / tal.dagligtMaal, 0, 1) : 0;
-    uint8_t laengde = AppConfig::RING_VISER_TILBAGE ? tal.groentAfBaren : alpha(fremgang);
-    if (AppConfig::HEL_RING_VED_MAAL && tal.dagligtMaal > 0 && tal.tilbageIDag == 0) laengde = 255;
-    ring(p, laengde, AppConfig::GROEN);
-
-    // Store, hvide dagstal og graat maal, som i jeres prototype.
-    char venstre[64], hoejre[24], uge[24];
-    snprintf(venstre, sizeof(venstre), "%lu/", static_cast<unsigned long>(app.data.kalorier.spistIDag));
-    snprintf(hoejre, sizeof(hoejre), "%lu", static_cast<unsigned long>(tal.dagligtMaal));
-    centrer(p, venstre, hoejre, AppConfig::FONT_FORSIDE.dagensTal, AppConfig::DAGSTAL_Y,
-            AppConfig::HVID, AppConfig::GRAA_TEKST, 84);
-    // En gemmefejl bruger det eksisterende tekstfelt, aldrig et banner.
+    ring(p, tal.groentAfBaren, AppConfig::GROEN);
+    char tilbage[24], maal[24], uge[64], ugeMaal[24];
+    snprintf(tilbage, sizeof(tilbage), "%lu/", static_cast<unsigned long>(tal.tilbageIDag));
+    snprintf(maal, sizeof(maal), "%lu", static_cast<unsigned long>(tal.dagligtMaal));
+    centrer(p, tilbage, maal, AppConfig::FONT_FORSIDE.dagensTal, AppConfig::DAGSTAL_Y,
+            AppConfig::HVID, AppConfig::GRAA_TEKST, 92);
     const bool fejl = strcmp(app.besked, "Kunne ikke gemme") == 0;
-    centrer(p, fejl ? "Gemmefejl" : "Kalorier", "", AppConfig::FONT_FORSIDE.kcalTekst,
-            AppConfig::KCAL_TEKST_Y, fejl ? AppConfig::FEJL : AppConfig::HVID, AppConfig::HVID, 78);
-    // To laesbare linjer: fuld overskrift og praecise kalorietal uden afkortning.
-    centrer(p, "Ugentlig mål", "", AppConfig::FONT_FORSIDE.ugeOverskrift,
-            AppConfig::UGEOVERSKRIFT_Y);
-    formaterDansk(tal.spistDenneUge, uge, sizeof(uge));
-    formaterDansk(app.data.kalorier.ugentligtMaal, hoejre, sizeof(hoejre));
-    snprintf(venstre, sizeof(venstre), "%s/", uge);
-    centrer(p, venstre, hoejre, AppConfig::FONT_FORSIDE.ugensTal, AppConfig::UGETAL_Y);
-    // Den groenne markering ved siden af ringen peger paa betjeningen, som i designet.
-    kort(p, 123, 51, 2, 49, 1, AppConfig::GROEN);
+    centrer(p, fejl ? "Gemmefejl" : "kcal tilbage", "", AppConfig::FONT_FORSIDE.kcalTekst,
+            AppConfig::KCAL_TEKST_Y, fejl ? AppConfig::FEJL : AppConfig::HVID, AppConfig::HVID, 86);
+    formaterDansk(app.data.kalorier.ugentligtMaal, ugeMaal, sizeof(ugeMaal));
+    snprintf(uge, sizeof(uge), "Ugentligt mål: %lu/", static_cast<unsigned long>(tal.spistDenneUge));
+    const AAFont& ugeFont=findSkrift(AppConfig::FONT_FORSIDE.ugensTal);
+    if (tekstBredde(uge,ugeFont)+tekstBredde(ugeMaal,ugeFont)<=124*256) {
+      centrer(p, uge, ugeMaal, AppConfig::FONT_FORSIDE.ugensTal, AppConfig::UGETAL_Y,
+              AppConfig::HVID, AppConfig::GRAA_TEKST, 124);
+    } else {
+      // Ekstreme testtal faar to linjer frem for at blive klippet i kanten.
+      centrer(p, "Ugentligt mål:", "", 9, AppConfig::UGETAL_Y-12);
+      snprintf(uge,sizeof(uge),"%lu/",static_cast<unsigned long>(tal.spistDenneUge));
+      centrer(p, uge, ugeMaal, 9, AppConfig::UGETAL_Y, AppConfig::HVID, AppConfig::GRAA_TEKST,124);
+    }
+    sidebetjening(p, true, true);
   }
 
-  // Overskriften flytter sig aldrig. Kun fejl erstatter teksten i samme felt.
   inline void sidetitel(uint16_t* p, const KalorieAppModel& app, const char* tekst) {
     const bool fejl = strcmp(app.besked, "Kunne ikke gemme") == 0;
     centrer(p, fejl ? "Kunne ikke gemme" : tekst, "", AppConfig::FONT_TITEL,
@@ -148,108 +164,107 @@ namespace AppDraw {
   }
 
   inline void menu(uint16_t* p, const KalorieAppModel& app) {
-    // Sidetitel og tre menuraekker. Placeringerne findes i app_indstillinger.h.
     sidetitel(p, app, "Indstillinger");
     for (int i = 0; i < 3; ++i) {
-      int y = AppConfig::MENU_START_Y + i * (AppConfig::MENU_RAEKKE_HOEJDE + AppConfig::MENU_AFSTAND);
-      bool valgt = app.valgtRaekke == i;
-      uint16_t kant = app.trykFeedback && valgt ? AppConfig::HVID : AppConfig::GROEN;
-      kort(p, AppConfig::MENU_X, y, AppConfig::MENU_BREDDE,
-           AppConfig::MENU_RAEKKE_HOEJDE, 8,
-           AppConfig::KORT, kant, valgt ? 1.2f : 0);
+      const int y = AppConfig::MENU_START_Y + i*(AppConfig::MENU_RAEKKE_HOEJDE + AppConfig::MENU_AFSTAND);
+      const bool valgt = app.valgtRaekke == i;
+      kort(p, AppConfig::MENU_X, y, AppConfig::MENU_BREDDE, AppConfig::MENU_RAEKKE_HOEJDE,
+           7, AppConfig::KORT, AppConfig::GROEN, valgt ? 1.0f : 0);
       const char* tekst = AppConfig::MENU_TEKSTER[i];
-      const AAFont& font = tilpas(tekst, "", AppConfig::FONT_MENU, AppConfig::MENU_BREDDE - 12);
-      tegnTekst(p, tekst, font, (AppConfig::MENU_X + 6) * 256,
-                y + AppConfig::MENU_RAEKKE_HOEJDE / 2 + 4, AppConfig::HVID);
-      if (valgt) kort(p, 122, y, 2, AppConfig::MENU_RAEKKE_HOEJDE, 1, AppConfig::GROEN);
+      const AAFont& font = tilpas(tekst, "", AppConfig::FONT_MENU, AppConfig::MENU_BREDDE - (i==2?24:12));
+      tegnTekst(p, tekst, font, (AppConfig::MENU_X+6)*256, y+AppConfig::MENU_RAEKKE_HOEJDE/2+4,
+                i==2 ? AppConfig::FEJL : AppConfig::HVID);
+      if (i==2) skraldespand(p, 100, y+5);
     }
-    // Ekstra tilbagevej goer hele menuen brugbar med blot op, ned og tryk.
-    centrer(p, "Tilbage", "", AppConfig::FONT_MIN, AppConfig::MENU_TILBAGE_Y,
-            app.valgtRaekke == 3 ? AppConfig::GROEN : AppConfig::GRAA_TEKST);
-    if (app.valgtRaekke == 3) kort(p, 122, AppConfig::MENU_TILBAGE_Y - 10, 2, 12, 1, AppConfig::GROEN);
-  }
-
-  // Samme hjaelp paa alle undersider: teksten foelger den valgte handling.
-  inline void hjaelp(uint16_t* p, const KalorieAppModel& app) {
-    const char* hint = "Swipe: vælg | Tryk: OK";
-    if (app.fokus == Fokus::Fortryd) hint = "Tryk: fortryd";
-    else if (app.fokus == Fokus::Gem) {
-      hint = app.side == Side::Nulstil ? "Tryk: nulstil | Swipe: flyt"
-                                      : "Tryk: gem | Swipe: flyt";
-    }
-    centrer(p, hint, "", AppConfig::FONT_HINT, AppConfig::HINT_Y, AppConfig::GRAA_TEKST);
+    centrer(p, "Tilbage", "", 10, AppConfig::MENU_TILBAGE_Y,
+            app.valgtRaekke==3 ? AppConfig::GROEN : AppConfig::GRAA_TEKST);
+    sidebetjening(p, app.valgtRaekke>0, app.valgtRaekke<3);
   }
 
   inline void rediger(uint16_t* p, const KalorieAppModel& app) {
-    bool maal = app.side == Side::Ugemaal;
-    bool vaerdiValgt = app.fokus == Fokus::Vaerdi;
-    char tal[32], beskrivelse[64], dag[24];
+    const bool maal = app.side == Side::Ugemaal;
+    const uint32_t minimum = maal ? AppConfig::MIN_UGEMAAL : AppConfig::MIN_LYS;
+    const uint32_t maksimum = maal ? AppConfig::MAX_UGEMAAL : AppConfig::MAX_LYS;
+    char tal[32], dag[32], beskrivelse[48];
     sidetitel(p, app, maal ? "Ugentligt mål" : "Lysstyrke");
-    // Den store vaerdi er en kladde. Gem bekraefter; Fortryd genskaber originalen.
-    if (maal) formaterDansk(app.kladde, tal, sizeof(tal));
-    else snprintf(tal, sizeof(tal), "%lu%%", static_cast<unsigned long>(app.kladde));
-    centrer(p, tal, "", AppConfig::FONT_STOR_VAERDI, maal ? 52 : 65, AppConfig::HVID);
-    // Skyderens prik viser fokus; talfeltet faar mere luft uden understregning.
-    centrer(p, maal ? "kcal pr. uge" : "skærmens lys", "", AppConfig::FONT_BESKRIVELSE,
-            maal ? 70 : 83, AppConfig::GRAA_TEKST);
     if (maal) {
-      formaterDansk(app.kladde / 7, dag, sizeof(dag));
-      snprintf(beskrivelse, sizeof(beskrivelse), "%s %s kcal pr. dag",
-               app.kladde % 7 ? "ca." : "=", dag);
-      centrer(p, beskrivelse, "", AppConfig::FONT_MIN, 90);
-      skyder(p, static_cast<float>(app.kladde - AppConfig::MIN_UGEMAAL)
-                  / (AppConfig::MAX_UGEMAAL - AppConfig::MIN_UGEMAAL), vaerdiValgt);
+      formaterDansk(app.kladde, tal, sizeof(tal));
+      centrer(p, tal, "", 20, 55);
+      centrer(p, "kcal pr. uge", "", 10, 75, AppConfig::GRAA_TEKST);
+      formaterDansk(app.kladde/7, dag, sizeof(dag));
+      snprintf(beskrivelse, sizeof(beskrivelse), "%s %s kcal pr. dag", app.kladde%7 ? "ca." : "=", dag);
+      centrer(p, beskrivelse, "", 10, 95);
     } else {
-      skyder(p, static_cast<float>(app.kladde - AppConfig::MIN_LYS)
-                  / (AppConfig::MAX_LYS - AppConfig::MIN_LYS), vaerdiValgt);
+      const unsigned lys = app.kladde;
+      if (lys < AppConfig::MAX_LYS) {
+        snprintf(tal, sizeof(tal), "%u%%", lys+AppConfig::LYS_TRIN);
+        centrer(p, tal, "", 13, 48, AppConfig::DEMPET);
+      }
+      kort(p, 15, 56, 98, 27, 7, AppConfig::VAERDI_FELT);
+      snprintf(tal, sizeof(tal), "%u%%", lys);
+      centrer(p, tal, "", 20, 77);
+      if (lys > AppConfig::MIN_LYS) {
+        snprintf(tal, sizeof(tal), "%u%%", lys-AppConfig::LYS_TRIN);
+        centrer(p, tal, "", 13, 99, AppConfig::DEMPET);
+      }
     }
-    // Knapperne har faelles position og ekstra luft over hjaelpeteksten.
-    knap(p, AppConfig::KNAP_VENSTRE_X, AppConfig::KNAP_Y, AppConfig::KNAP_BREDDE,
-         "Fortryd", false, app.fokus == Fokus::Fortryd, app.trykFeedback);
-    knap(p, AppConfig::KNAP_HOEJRE_X, AppConfig::KNAP_Y, AppConfig::KNAP_BREDDE,
-         "Gem", true, app.fokus == Fokus::Gem, app.trykFeedback);
-    hjaelp(p, app);
+    knap(p, 15, 118, 98, "Gem", true, false, app.trykFeedback);
+    centrer(p, "Swipe: Ændr | Tryk: Gem", "", 9, 155, AppConfig::GRAA_TEKST, AppConfig::GRAA_TEKST, 124);
+    sidebetjening(p, app.kladde<maksimum, app.kladde>minimum);
   }
 
   inline void nulstil(uint16_t* p, const KalorieAppModel& app) {
+    const bool fortryd = app.fokus == Fokus::Fortryd;
     sidetitel(p, app, "Nulstil data");
-    centrer(p, "Vil du nulstille dagens", "", 11, 57);
-    centrer(p, "og ugens kalorier?", "", 11, 74);
-    centrer(p, "Ugentlig mål bevares", "", AppConfig::FONT_MIN, 96, AppConfig::GRAA_TEKST);
-    knap(p, AppConfig::KNAP_VENSTRE_X, AppConfig::KNAP_Y, AppConfig::KNAP_BREDDE,
-         "Fortryd", false, app.fokus == Fokus::Fortryd, app.trykFeedback);
-    knap(p, AppConfig::KNAP_HOEJRE_X, AppConfig::KNAP_Y, AppConfig::KNAP_BREDDE,
-         "Nulstil", true, app.fokus == Fokus::Gem, app.trykFeedback);
-    hjaelp(p, app);
+    centrer(p, "Nulstil dagens og", "", 11, 57);
+    centrer(p, "ugens kalorier", "", 11, 73);
+    centrer(p, "Ugentligt mål bevares", "", 9, 93, AppConfig::GRAA_TEKST);
+    knap(p, 15, 118, 44, "Fortryd", fortryd, fortryd, app.trykFeedback);
+    knap(p, 69, 118, 44, "Nulstil", false, !fortryd, app.trykFeedback, true);
+    centrer(p, fortryd ? "Swipe: Vælg | Tryk: Fortryd" : "Swipe: Vælg | Tryk: Nulstil", "", 9, 155,
+            AppConfig::GRAA_TEKST, AppConfig::GRAA_TEKST, 124);
+    sidebetjening(p, !fortryd, fortryd);
   }
 
   inline void maaltid(uint16_t* p, const KalorieAppModel& app) {
-    sidetitel(p, app, "Bekræft frugt");
-    centrer(p, app.forslag.frugt, "", 16, 47);
+    const bool accepter = app.fokus == Fokus::Gem;
+    sidetitel(p, app, "Bekræft måltid");
+    centrer(p, app.forslag.frugt, "", 16, 48);
     char tal[32];
     snprintf(tal, sizeof(tal), "%lu kcal", static_cast<unsigned long>(app.forslag.kcal));
     centrer(p, tal, "", 20, 76);
     snprintf(tal, sizeof(tal), "Standard: %u g", unsigned(app.forslag.gram));
-    centrer(p, tal, "", 10, 96, AppConfig::GRAA_TEKST);
-    centrer(p, "Ikke registreret endnu", "", 10, 110, AppConfig::GRAA_TEKST);
-    knap(p, 6, 120, 46, "Afvis", false, app.fokus == Fokus::Fortryd, app.trykFeedback);
-    knap(p, 57, 120, 65, "Accepter", true, app.fokus == Fokus::Gem, app.trykFeedback);
-    centrer(p, app.fokus == Fokus::Gem ? "Tryk: accepter" : "Tryk: afvis", "", 10, 155,
-            AppConfig::GRAA_TEKST);
+    centrer(p, tal, "", 10, 98, AppConfig::GRAA_TEKST);
+    knap(p, 15, 118, 43, "Afvis", false, !accepter, app.trykFeedback);
+    knap(p, 66, 118, 53, "Accepter", true, accepter, app.trykFeedback);
+    centrer(p, accepter ? "Tryk: Accepter" : "Tryk: Afvis", "", 10, 155, AppConfig::GRAA_TEKST);
+    sidebetjening(p, accepter, !accepter);
   }
 
   inline void scanFejl(uint16_t* p, const KalorieAppModel& app) {
-    sidetitel(p, app, "Prøv igen");
-    centrer(p, app.scanFejl, "", 11, 60, AppConfig::HVID);
-    centrer(p, "Tag et nyt billede", "", 10, 82, AppConfig::GRAA_TEKST);
-    centrer(p, "Intet registreret", "", 10, 101, AppConfig::GRAA_TEKST);
-    knap(p, 25, 120, 78, "Tilbage", true, true, app.trykFeedback);
+    const bool ingenFrugt = strcmp(app.scanFejl, "Ingen kendt frugt")==0 || strcmp(app.scanFejl, "Ingen frugt fundet")==0;
+    const bool usikker = strcmp(app.scanFejl, "Usikker genkendelse")==0;
+    kort(p, 50, 13, 28, 28, 14, AppConfig::KORT);
+    if (ingenFrugt) {
+      // Forbudssymbol med tynd, hvid cirkel og diagonal.
+      for (int y=19; y<=35; ++y) for (int x=56; x<=72; ++x) {
+        const float d=fabsf(hypotf(x-64.0f, y-27.0f)-7.5f);
+        const float a=klip(1.2f-d,0,1);
+        p[y*128+x]=blandPixel(AppConfig::HVID,p[y*128+x],alpha(a));
+      }
+      linje(p, 59, 22, 69, 32, AppConfig::HVID, 1.4f);
+    } else centrer(p, usikker ? "?" : "!", "", 20, 35);
+    centrer(p, ingenFrugt ? "Ingen frugt fundet" : app.scanFejl, "", 11, 79, AppConfig::HVID,
+            AppConfig::HVID, 108);
+    centrer(p, "Tag et nyt billede", "", 10, 99, AppConfig::GRAA_TEKST);
+    knap(p, 26, 118, 76, "Prøv igen", true, true, app.trykFeedback);
+    centrer(p, "Tryk: Prøv igen", "", 10, 155, AppConfig::GRAA_TEKST);
+    sidebetjening(p, false, false);
   }
 }
 
-// Eneste tegnefunktion, som hovedprogrammet behoever at kalde.
 inline void tegnApp(uint16_t* pixels, const KalorieAppModel& app) {
-  memset(pixels, 0, 128 * 160 * sizeof(uint16_t));
+  memset(pixels, 0, 128*160*sizeof(uint16_t));
   switch (app.side) {
     case Side::Forside: AppDraw::forside(pixels, app); break;
     case Side::Indstillinger: AppDraw::menu(pixels, app); break;

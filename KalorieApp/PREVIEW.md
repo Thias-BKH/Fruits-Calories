@@ -22,9 +22,18 @@ ved en genbygning. Korte statusbeskeder og trykfeedback starter ikke forfra.
 Hvis der er en fejl i koden, viser siden fejlbeskeden og det senest fungerende
 design. Ret fejlen og gem igen.
 
-Browserens knapper og **↑ / ↓ / Enter / Escape** efterligner sliderens hændelser.
+Browserens knapper og **↑ / ↓ / Enter / Escape** efterligner sidebetjeningens swipe og tryk.
 **+** simulerer et æbleforslag; tallet registreres først efter **Accepter**. Musen bruges til previewets betjeningsknapper; der er
 ikke tilføjet berøringsstyring direkte på den virtuelle skærm.
+
+## Det nye design og betjeningsflow
+
+- Forsiden viser dagens resterende kcal og en ring, der falder ved accept.
+- Swipe flytter markeringen; en nedtonet pil ved højre kant angiver en grænse.
+- På ugemål og lysstyrke ændrer swipe værdien. **Ét tryk gemmer**.
+- **Escape/Tilbage** annullerer en ændring. På kortet bruges langt tryk.
+- **Prøv igen** forlader fejlbeskeden og gør klar til et nyt foto/kamerabillede.
+- Standardværdier: 14.000 kcal pr. uge, 0 registreret, 75 % lysstyrke.
 
 ## Det er den samme designkode
 
@@ -37,10 +46,10 @@ i `preview/`, så den ikke bliver en del af Arduino-programmet.
 
 Alle tal og indstillinger i previewet er **testdata i hukommelsen**. De overføres
 ikke til ESP32. Browsergenindlæsning bevarer testdata, så længe serveren kører.
-Knappen **Genstart test** eller genstart af serveren indlæser standardværdierne
+Knappen **Genstart med startværdier** eller genstart af serveren indlæser standardværdierne
 fra `app_indstillinger.h`. Brug dette efter ændring af `START_KALORIER`.
 
-Den fysiske touchfølsomhed, skærmens lysstyrke, farvegengivelse og opdateringshastighed
+Sidebetjeningens fysiske følsomhed, skærmens lysstyrke, farvegengivelse og opdateringshastighed
 skal stadig testes på udstyret. Skærmvisningen i browseren dæmpes ikke af lysstyrketallet.
 
 ## Live Server på port 5500
@@ -87,7 +96,7 @@ Knapperne **Simulér scanning: Æble** og **Banan** åbner samme bekræftelsessi
 med faste testresultater. Foto/kamera-sektionen kører den rigtige model.
 
 - **Afvis** er valgt fra start. Enter afviser og ændrer ikke dagens kalorier.
-- Swipe én gang (↑ eller ↓) til **Accepter**, og tryk Enter for at registrere.
+- Swipe ned (↓) til **Accepter**, og tryk Enter for at registrere.
 - Escape afviser også. Resultatet kan kun accepteres én gang.
 - Standardportionens gram og kcal står på skærmen. Kameraet måler ingen vægt.
 - **Baggrund** og **Usikkert resultat** viser fejlflowet uden at tilføje kalorier.
@@ -95,6 +104,6 @@ med faste testresultater. Foto/kamera-sektionen kører den rigtige model.
 - Hot reload bevarer frugt, portion, kcal og valgt knap uden at registrere forslaget.
 
 Lokal foto-/kameratest kræver ingen tilsluttet ESP32 eller skærm. Den tester
-modellens genkendelse og appens bekræftelsesflow. Fysisk touch, RAM og hastighed
+modellens genkendelse og appens bekræftelsesflow. Fysisk sidebetjening, RAM og hastighed
 på ESP32 skal stadig afprøves på kortet. Ved senere hardwaretest åbner telefonen
 ESP32's side på **http://192.168.4.1**.

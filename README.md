@@ -5,8 +5,8 @@ brugerens bekræftelse. Den rigtige Edge Impulse-model kan nu testes med eget
 kamera eller fotos på **localhost uden tilsluttet ESP32 eller skærm**.
 
 Den planlagte hardware er ét **ESP32-WROOM-32-kort**, en **128 × 160-skærm uden touch**
-og **én fysisk sideknap**. Betjeningen med én sideknap er foreløbig et separat
-designudkast og er endnu ikke implementeret i koden her.
+og **én sidebetjening med swipe op/ned og kort tryk**. Det nye design og
+betjeningsflow er implementeret i den fælles kode til localhost og ESP32.
 
 ## Aktuel status
 
@@ -15,8 +15,8 @@ designudkast og er endnu ikke implementeret i koden her.
 | Foto og kamera på localhost | Implementeret. Kameraet kan åbnes, og egne fotos kan vælges. |
 | Billedgenkendelse på computeren | Den medfølgende RGB-model 1.0.8 kører lokalt. Både æble og banan er afprøvet med egne kamerabilleder. |
 | Afvis / Accepter | Implementeret. En scanning er et forslag, indtil den accepteres. |
-| Design og navigation med én sideknap | Separat designudkast; endnu ikke indarbejdet i preview eller firmware. |
-| Samlet ESP32-firmware | Kompileret med modellen, men endnu ikke fysisk afprøvet. Inputkoden bruger fortsat den tidligere touchslider med fem felter og skal tilpasses sideknappen. |
+| Nyt design og navigation | Implementeret: sideindikator, markeret valg, swipe op/ned og kort tryk. Ét tryk på Gem gemmer mål eller lysstyrke. |
+| Samlet ESP32-firmware | Kompileret med det nye design og modellen. Fysisk skærm, sensorinput og modelkørsel på kortet mangler stadig afprøvning. |
 
 ## Test med dit eget kamera eller foto på localhost
 
@@ -56,7 +56,7 @@ Live Server alene kan ikke køre C++-modellen.
    og skaleres til **96 × 96 RGB-pixels** og behandles af modellen på computeren.
 3. Kontrollér **frugttype, beregnede kcal og standardportion i gram** på den
    virtuelle skærm. **Vis modellens vurdering** viser scores for alle tre klasser.
-4. **Afvis er valgt fra start.** Brug **↓** eller knappen **Ned** for at markere
+4. **Afvis er valgt fra start.** Brug **↓** eller knappen **Swipe ned** for at markere
    **Accepter**, og bekræft med **Enter** eller **Tryk**.
 5. Først ved accept opdateres dagens kalorier, ugens total og ringen.
 
@@ -73,29 +73,45 @@ Knapperne under **Simulerede testdata** leverer faste testresultater til layoutt
 **Foto- og kamerafunktionen kører den rigtige model.**
 Se [PREVIEW.md](KalorieApp/PREVIEW.md) for hot reload og fejlfinding.
 
-![Bekræftelsesside i det nuværende preview](docs/bekraeft-frugt.jpg)
+## Design og betjening
 
-## Designudkast med én fysisk sideknap
+![Det implementerede design, tegnet af appens C++-kode](docs/final-design.png)
 
-Skærmen skal vise information og det markerede valg; betjeningen skal ske med
-sideknappen. Det separate udkast foreslår:
+Skærmen har **ikke touch**. De viste knapper angiver handlinger, som vælges med
+sidebetjeningen. Pile og den grønne prik ved højre kant viser swipe/tryk;
+en nedtonet pil betyder, at den retning ikke ændrer valget.
 
-- **Kort tryk:** Flyt til næste punkt.
-- **Hold i cirka 0,8 sekund:** Vælg eller bekræft det markerede punkt.
-- **Tilbage / Fortryd:** Synlige valgmuligheder i menuerne.
-- **Afvis / Accepter:** Afvis er standard; Accepter kræver markering og et langt tryk.
+| Side | Swipe op/ned | Kort tryk |
+| --- | --- | --- |
+| Forside | Åbn indstillinger | Åbn indstillinger |
+| Indstillinger | Flyt mellem rækker og Tilbage | Åbn markeret punkt |
+| Ugentligt mål | Ændr med 100 kcal | Gem med ét tryk |
+| Lysstyrke | Ændr med 5 procentpoint | Gem med ét tryk |
+| Bekræft måltid | Op: Afvis · Ned: Accepter | Udfør det markerede valg |
+| Nulstil data | Op: Fortryd · Ned: Nulstil | Udfør det markerede valg |
+| Ingen frugt / usikker genkendelse | Ingen ændring | Prøv igen: tilbage, klar til et nyt billede |
 
-Dette er **foreslået betjening**. Det nuværende localhost-preview bruger stadig
-**Op, Ned, Tryk og Tilbage**, og firmwarekoden indeholder stadig den tidligere
-sliderstyring. Hverken skærmens viste knapper eller ordet touchslider betyder,
-at den fysiske skærm har touch.
+Et langt, roligt tryk på cirka **0,8 sekund** går tilbage og annullerer en kladde.
+I browseren bruges **↑ / ↓ / Enter / Escape** eller de tilsvarende testknapper.
+Der er ingen berøringsstyring på den virtuelle skærm.
+
+Forsiden viser **kalorier tilbage i dag / dagsmål**. Ringen viser samme resterende
+andel og falder efter Accepter. Ugens tal viser spiste kalorier i forhold til ugemålet.
+Dagsmålet beregnes som ugemålet delt med syv. Startværdier er **14.000 kcal pr. uge,
+0 kcal registreret og 75 % lysstyrke**; eksisterende gemte data på ESP32 bevares.
+Billedoversigten ovenfor bruger 1.000 registrerede kcal for at vise en delvist fyldt ring.
+
+Menupunktet **Registrer kalorier** åbner ugemålet, som i designreferencen.
+**Afvis** og **Fortryd** er sikre standardvalg. Et nyt billede registrerer aldrig
+kalorier automatisk. Prøv igen genbruger heller ikke det forrige billede automatisk.
 
 ## ESP32-version og byggeopsætning
 
 ESP32-programmet samler skærm, billedmodtagelse via Wi-Fi, Edge Impulse og
-bekræftelsesflowet. **Input og navigation skal først tilpasses jeres ene sideknap.**
-Den nuværende inputkode forventer fem kapacitive touchfelter fra en tidligere
-prototype; det er særskilte inputfelter, ikke berøring på skærmen.
+bekræftelsesflowet. Appen modtager swipe op/ned, kort tryk og langt tilbage-tryk
+fra sidebetjeningen. Den eksisterende sensordriver læser fem kapacitive felter;
+ledninger og følsomhed skal verificeres mod jeres fysiske sidebetjening. Det er
+separate sensorfelter, ikke berøring på skærmen.
 
 Den samlede version er kompileret med følgende opsætning:
 
@@ -116,8 +132,8 @@ Ved senere hardwaretest sender telefonen billeder til ESP32 via netværket
 Modellen kører da på ESP32, og resultatet skal bekræftes på enhedens skærm med
 betjeningsknappen. Det lokale Wi-Fi kræver ikke internet.
 
-[LAES_MIG.md](KalorieApp/LAES_MIG.md) beskriver den tidligere opstilling med skærm
-og touchslider. Dens inputvejledning skal opdateres ved implementering af sideknappen.
+[LAES_MIG.md](KalorieApp/LAES_MIG.md) beskriver ledninger, sensordriver og
+betjeningsflowet på kortet.
 
 ## Standardportioner
 
@@ -138,7 +154,7 @@ Energikilder: Mattilsynets Matvaretabellen for
 
 | Mappe / fil | Rolle |
 | --- | --- |
-| `KalorieApp/KalorieApp.ino` | ESP32-program med skærm, tidligere sliderinput, Wi-Fi, model og bekræftelse |
+| `KalorieApp/KalorieApp.ino` | ESP32-program med skærm, swipe/tryk-input, Wi-Fi, model og bekræftelse |
 | `KalorieApp/preview/` | Localhost-server, kamera/foto, lokal modelkørsel og virtuel skærm |
 | `KalorieApp/preview/native_classifier.py` | Bygger og kører modelbiblioteket på computeren |
 | `KalorieApp/frugt_scanner.h` | ESP32-billedmodtagelse og kald til Edge Impulse |
@@ -147,7 +163,7 @@ Energikilder: Mattilsynets Matvaretabellen for
 | `KalorieApp/telefon_side.h` | Telefonens foto- og scanningsside til ESP32 |
 | `models/` | RGB-model 1.0.8 fra branch `Classifier-with-RGB` |
 | `Edge_impulse_WIP/` | Tidligere selvstændig prototype, bevaret som reference |
-| `tests/` | Tests af bekræftelse, RGB-data, hot reload og rigtig lokal inferens |
+| `tests/` | Tests af navigation, bekræftelse, RGB-data, rendering, hot reload og rigtig lokal inferens |
 
 På ESP32 bruger billedet midlertidigt skærmbufferens 40 KB; der tegnes ikke samtidigt.
 Animationsbufferen allokeres kun under sideskift og frigives før scanning.
@@ -161,8 +177,9 @@ Previewets hot reload, rigtig lokal modelkørsel og foto → Banan → Accepter 
 Kameragenkendelse af både æble og banan er desuden afprøvet med egne billeder.
 ESP32-programmet er kompileret med Arduino-ESP32 3.3.12 og Huge APP.
 
-Næste trin er at implementere input fra én sideknap og det tilhørende design i
-preview og firmware og derefter afprøve den samlede løsning på kortet.
+Det nye layout er visuelt kontrolleret med appens faktiske RGB565-rendering.
+Navigation, direkte Gem, annullering og nulstilling er testet med sanitizer.
+Næste trin er at afprøve den samlede løsning på kortet.
 **Der er endnu ikke foretaget fysisk test af den samlede ESP32-version.**
 Modelkørsel, fri RAM, knapbetjening under Wi-Fi og gentagne fotos skal kontrolleres
 på udstyret. Serial Monitor (115200 baud) viser modelresultater, fejlkoder,

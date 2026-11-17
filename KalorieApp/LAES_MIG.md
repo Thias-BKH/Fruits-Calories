@@ -1,7 +1,9 @@
-# KalorieApp – ESP32-WROOM-32 med skærm og touchslider
+# KalorieApp – ESP32-WROOM-32 med skærm og sidebetjening
 
 Denne mappe er **ét samlet program til ét ESP32-WROOM-32-kort**.
-Det samler skærmappen, jeres touchslider og Edge Impulse RGB-model 1.0.8.
+Det samler skærmappen, swipe/tryk-betjeningen og Edge Impulse RGB-model 1.0.8.
+Skærmen har ikke touch. Den eksisterende sensordriver læser fem kapacitive
+felter i sidebetjeningen; kontrollér ledninger og følsomhed på jeres opstilling.
 Et foto giver først et forslag; kun **Accepter** registrerer kalorier.
 
 ## 1. De bekræftede ledninger
@@ -59,7 +61,8 @@ Forbind telefonen til **FruitClassifier**, kode **fruit1234**, og åbn
 **http://192.168.4.1**. Tag/vælg et foto af ét æble eller én banan og tryk **Scan frugt**.
 ESP32 kører modellen og viser frugt, kcal og den faste standardportion.
 
-**Afvis** er valgt fra start. Swipe til **Accepter** og tryk kort for at registrere.
+**Afvis** er valgt fra start. Swipe ned til **Accepter** og tryk kort for at registrere.
+Swipe op markerer Afvis igen. Gentagne swipes i samme retning ændrer ikke valget.
 Afvis eller langt tilbage-tryk tilføjer intet. Et nyt billede kan ikke erstatte
 et forslag, mens du er ved at bekræfte det. Forslaget gemmes ikke ved genstart.
 
@@ -78,8 +81,10 @@ Baggrund, ukendte klasser og sikkerhed under 60 % giver besked om at prøve igen
   Tilbage-mulighed nederst.
 - **I et talfelt:** Et langt swipe kan give flere værditrin. Det gør det lettere
   at indstille ugemålet og lysstyrken.
-- **Gem/Fortryd:** Tryk i talfeltet vælger Gem. Tryk igen gemmer. Swipe på knapperne
-  vælger Fortryd eller går tilbage til talfeltet.
+- **Gem:** På ugemål og lysstyrke gemmer ét kort tryk kladden. Et langt tryk
+  annullerer. Der er kun én Gem-knap på disse sider.
+- **Nulstil:** Op vælger Fortryd, ned vælger Nulstil. Kort tryk udfører valget.
+- **Prøv igen:** Kort tryk vender tilbage, så et nyt billede kan tages; swipe ignoreres.
 
 Et swipe udløser ikke samtidig et klik ved slip. Et langt tilbage-tryk udløser
 heller ikke et ekstra klik, når fingeren løftes.
@@ -154,7 +159,8 @@ med fingrene væk fra felterne.
 ## 7. Data og de eksisterende sider
 
 Appens menu, ugemål, lysstyrke, nulstilling, grøn ring og gemte valg er med.
-Startdata er **16.000 kcal pr. uge, 0 kcal spist i dag og 0 fra tidligere dage**.
+Startdata er **14.000 kcal pr. uge, 0 kcal spist i dag, 0 fra tidligere dage og 75 % lysstyrke**.
+Forsidens tal og ring viser kalorier tilbage i dag. Ugens tal viser spiste kcal.
 På det nye kort bruges startværdierne første gang; derefter læses dets egne gemte data.
 Data på et andet ESP32-kort overføres ikke automatisk mellem kortene.
 
@@ -163,26 +169,16 @@ Telefon/foto og modellen er koblet til. Scanningsresultatet går gennem
 Kalorier gemmes først efter Accepter. Dato er endnu ikke koblet til; dag/uge
 skifter fortsat manuelt med `nyDag()` og `nyUge()` i denne prototype.
 
-## 8. Kontrol og hardwareafprøvning
+## 8. Kontrol af den samlede version
 
-Den tidligere hardwareversion blev bygget til **ESP32 Dev Module, Arduino-ESP32 3.3.12**
-med følgende resultat. Tallene og testresultaterne nedenfor er historiske og er
-ikke en ny hardwareverifikation af designversionen i dette repository:
+Det nye design er kompileret med **ESP32 Dev Module, Arduino-ESP32 3.3.12** og
+**Huge APP** den 17. november 2026:
 
-- 524.915 bytes program, cirka 40 % af standardens programplads.
-- 65.360 bytes globale data, cirka 19 % af den viste grænse.
+- 1.472.899 bytes program, cirka 46 % af 3 MB-programpartitionen.
+- 101.716 bytes globale data, cirka 31 % af RAM-grænsen i buildrapporten.
 
-Softwaretests er bestået for korte tryk, signalstøj, midlertidigt kontaktudfald,
-swipe i begge retninger, langt tryk, tidsmålerens rollover og koblingen til appen.
-De eksisterende tests for sider, Gem/Fortryd, lysstyrke, nulstilling og gemte data
-er også bestået. Den faktiske touchfølsomhed på jeres nye fysiske opstilling skal
-afprøves efter upload.
-
-Officiel reference for ESP32's touch-API:
-https://docs.espressif.com/projects/arduino-esp32/en/latest/api/touch.html
-
-
-## 9. Kontrol af den samlede version
+Tallene er fra kompileringen. Modelkørslens midlertidige RAM og hastighed skal
+måles på kortet. De tidligere hardwaremålinger findes i `KONTROL.txt`.
 
 Softwaretests dækker: ingen registrering før accept, standardvalget Afvis,
 tilbage/afvis, gentagne tryk, nyt billede mens et forslag venter, baggrund,

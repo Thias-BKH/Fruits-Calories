@@ -24,6 +24,7 @@ int main() {
       app.data.lysstyrke = static_cast<uint8_t>(brightness);
       app.side = static_cast<Side>(side);
       app.fokus = static_cast<Fokus>(focus);
+      if (app.side == Side::Ugemaal || app.side == Side::Lysstyrke) app.fokus = Fokus::Vaerdi;
       app.valgtRaekke = static_cast<uint8_t>(row);
       unsigned active = 0, gram = 0, confidence = 0;
       std::string fruit, error;
@@ -65,6 +66,8 @@ int main() {
               << ",\"weekly\":" << app.data.kalorier.ugentligtMaal
               << ",\"today\":" << app.data.kalorier.spistIDag
               << ",\"previous\":" << app.data.kalorier.spistTidligereDage
+              << ",\"remaining\":" << beregnKalorier(app.data.kalorier).tilbageIDag
+              << ",\"dailyGoal\":" << beregnKalorier(app.data.kalorier).dagligtMaal
               << ",\"brightness\":" << unsigned(app.data.lysstyrke)
               << ",\"activeBrightness\":" << unsigned(app.aktivLysstyrke())
               << ",\"pending\":" << (app.forslag.aktiv ? "true" : "false")

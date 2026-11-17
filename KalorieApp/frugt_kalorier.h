@@ -30,7 +30,7 @@ namespace FrugtKalorier {
     }
     const Frugt* frugt = find(label);
     if (!frugt) {
-      app.visScanFejl("Ingen kendt frugt");
+      app.visScanFejl("Ingen frugt fundet");
       return false;
     }
     return app.foreslaaMaaltid(frugt->label, kcal(*frugt), frugt->gram,

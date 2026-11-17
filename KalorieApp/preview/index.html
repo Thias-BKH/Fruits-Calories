@@ -147,6 +147,7 @@
           <button type="button" data-action="restart">Genstart med startværdier</button>
         </div>
         <dl>
+          <dt>Tilbage i dag</dt><dd id="remaining">—</dd>
           <dt>Spist i dag</dt><dd id="today">—</dd>
           <dt>Ugentligt mål</dt><dd id="weekly">—</dd>
           <dt>Valgt lysstyrke</dt><dd id="brightness">—</dd>
@@ -163,7 +164,7 @@
       </section>
     </aside>
   </div>
-  <footer>Skærmbilledet kommer fra din C++-kode. Fysisk touch, baggrundsbelysning og skærmens hastighed testes senere på udstyret.</footer>
+  <footer>Skærmbilledet kommer fra din C++-kode. Fysisk sidebetjening, baggrundsbelysning og skærmens hastighed testes senere på udstyret.</footer>
 </main>
 <script>
   'use strict';
@@ -183,7 +184,7 @@
   targetContext.imageSmoothingEnabled = false;
   previousContext.imageSmoothingEnabled = false;
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-  const names = ['Forside', 'Indstillinger', 'Ugentligt mål', 'Lysstyrke', 'Nulstil data', 'Bekræft frugt', 'Prøv igen'];
+  const names = ['Forside', 'Indstillinger', 'Ugentligt mål', 'Lysstyrke', 'Nulstil data', 'Bekræft måltid', 'Prøv igen'];
   const formatter = new Intl.NumberFormat('da-DK');
   let queue = Promise.resolve();
   let hasFrame = false;
@@ -411,10 +412,13 @@
     if (data.state) {
       if (currentState && currentState.pending && !data.state.pending)
         photoMessage.textContent = 'Valg behandlet. Registreret i dag: ' + formatter.format(data.state.today) + ' kcal. Du kan scanne igen.';
+      if (currentState && currentState.side === 6 && data.state.side === 0)
+        photoMessage.textContent = 'Klar til et nyt billede. Tag et nyt kamerabillede, eller vælg et andet foto og scan igen.';
       currentState = data.state;
       updatePhotoControls();
       document.getElementById('screen-name').textContent = names[data.state.side] || 'Skærmvisning';
       document.getElementById('today').textContent = formatter.format(data.state.today) + ' kcal';
+      document.getElementById('remaining').textContent = formatter.format(data.state.remaining) + ' kcal';
       document.getElementById('weekly').textContent = formatter.format(data.state.weekly) + ' kcal';
       document.getElementById('brightness').textContent = formatter.format(data.state.activeBrightness) + ' %';
       document.getElementById('pending').textContent = data.state.pending

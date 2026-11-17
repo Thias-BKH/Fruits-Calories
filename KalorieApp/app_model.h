@@ -84,10 +84,13 @@ class KalorieAppModel {
     }
     if (event == Input::Tilbage) { tilbage(nu); return; }
 
-    if (side == Side::ScanFejl) { side = Side::Forside; return; }
+    if (side == Side::ScanFejl) {
+      if (event == Input::Tryk) side = Side::Forside;
+      return;
+    }
     if (side == Side::Maaltid) {
-      if (event == Input::SwipeOp || event == Input::SwipeNed)
-        fokus = fokus == Fokus::Gem ? Fokus::Fortryd : Fokus::Gem;
+      if (event == Input::SwipeOp) fokus = Fokus::Fortryd;
+      if (event == Input::SwipeNed) fokus = Fokus::Gem;
       if (event == Input::Tryk) {
         const bool accepter = forslag.aktiv && fokus == Fokus::Gem;
         const uint32_t kcal = forslag.kcal;
@@ -106,8 +109,8 @@ class KalorieAppModel {
     }
 
     if (side == Side::Indstillinger) {
-      if (event == Input::SwipeOp) valgtRaekke = (valgtRaekke + 3) % 4;
-      if (event == Input::SwipeNed) valgtRaekke = (valgtRaekke + 1) % 4;
+      if (event == Input::SwipeOp && valgtRaekke > 0) --valgtRaekke;
+      if (event == Input::SwipeNed && valgtRaekke < 3) ++valgtRaekke;
       if (event != Input::Tryk) return;
       fokus = Fokus::Vaerdi;
       if (valgtRaekke == 0) { side = Side::Ugemaal; kladde = data.kalorier.ugentligtMaal; }
@@ -119,8 +122,8 @@ class KalorieAppModel {
 
     // Nulstil har bekraeftelse og starter paa Fortryd, saa et enkelt tryk er ufarligt.
     if (side == Side::Nulstil) {
-      if (event == Input::SwipeOp || event == Input::SwipeNed)
-        fokus = fokus == Fokus::Gem ? Fokus::Fortryd : Fokus::Gem;
+      if (event == Input::SwipeOp) fokus = Fokus::Fortryd;
+      if (event == Input::SwipeNed) fokus = Fokus::Gem;
       if (event == Input::Tryk) {
         if (fokus == Fokus::Gem) {
           data.kalorier.spistIDag = 0;
@@ -133,23 +136,15 @@ class KalorieAppModel {
       return;
     }
 
-    // I talfeltet aendrer swipe vaerdien. Tryk flytter fokus til Gem-knappen.
-    if (fokus == Fokus::Vaerdi) {
+    // En enkelt Gem-knap: swipe redigerer, og et kort tryk gemmer straks kladden.
+    if (side == Side::Ugemaal || side == Side::Lysstyrke) {
+      fokus = Fokus::Vaerdi;
       const uint32_t trin = side == Side::Ugemaal ? AppConfig::MAAL_TRIN : AppConfig::LYS_TRIN;
       const uint32_t minimum = side == Side::Ugemaal ? AppConfig::MIN_UGEMAAL : AppConfig::MIN_LYS;
       const uint32_t maksimum = side == Side::Ugemaal ? AppConfig::MAX_UGEMAAL : AppConfig::MAX_LYS;
       if (event == Input::SwipeOp) kladde = kladde + trin > maksimum ? maksimum : kladde + trin;
       if (event == Input::SwipeNed) kladde = kladde < minimum + trin ? minimum : kladde - trin;
-      if (event == Input::Tryk) fokus = Fokus::Gem;
-      return;
-    }
-
-    // Paa knapperne skifter swipe fokus. Man kan ogsaa vende tilbage til talfeltet.
-    if (event == Input::SwipeOp) fokus = fokus == Fokus::Gem ? Fokus::Vaerdi : Fokus::Gem;
-    if (event == Input::SwipeNed) fokus = fokus == Fokus::Gem ? Fokus::Fortryd : Fokus::Vaerdi;
-    if (event != Input::Tryk) return;
-    if (fokus == Fokus::Fortryd) { tilbage(nu); return; }
-    if (fokus == Fokus::Gem) {
+      if (event != Input::Tryk) return;
       if (side == Side::Ugemaal) {
         data.kalorier.ugentligtMaal = kladde;
         visBesked("Ugemål gemt", nu);
